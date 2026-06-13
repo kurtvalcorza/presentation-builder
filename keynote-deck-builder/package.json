@@ -1,0 +1,22 @@
+{
+  "name": "keynote-deck-builder",
+  "version": "1.0.0",
+  "description": "Turn a talk script into a minimalist, presenter-driven keynote deck — one idea per slide, big type, dark/light themes, abstract vector motifs, speaker notes baked in.",
+  "license": "MIT",
+  "author": "Kurt Valcorza",
+  "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kurtvalcorza/keynote-deck-builder.git"
+  },
+  "homepage": "https://github.com/kurtvalcorza/keynote-deck-builder#readme",
+  "bugs": {
+    "url": "https://github.com/kurtvalcorza/keynote-deck-builder/issues"
+  },
+  "scripts": {
+    "sample": "node scripts/build_keynote.js references/sample_outline.json sample.pptx"
+  },
+  "dependencies": {
+    "pptxgenjs": "^3.12.0"
+  }
+}

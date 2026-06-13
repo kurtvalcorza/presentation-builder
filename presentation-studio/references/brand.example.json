@@ -1,0 +1,19 @@
+{
+  "_comment": "Optional brand config for the pptx mode. Copy this file, edit the values, and point the generator at it. If no brand config is provided, the pptx mode uses these neutral defaults. Colors are hex strings without the leading '#'.",
+  "colors": {
+    "primary": "2E6BE6",
+    "accent": "17A673",
+    "ink": "0B1B2E",
+    "muted": "5A6B82",
+    "background": "FFFFFF"
+  },
+  "fonts": {
+    "heading": "Segoe UI Semibold",
+    "body": "Segoe UI"
+  },
+  "sizing": {
+    "title_pt": 40,
+    "heading_pt": 28,
+    "body_pt": 18
+  }
+}

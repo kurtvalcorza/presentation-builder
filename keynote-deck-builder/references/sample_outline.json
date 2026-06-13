@@ -1,0 +1,14 @@
+{
+  "_comment": "Worked example for Keynote Deck Builder (a generic talk). Build with: THEME=navy node scripts/build_keynote.js references/sample_outline.json sample.pptx",
+  "deck_title": "sample_talk",
+  "theme_hint": "navy",
+  "slides": [
+    {"n":1,"type":"TITLE","accent":"BLUE","motif":"orbit","eyebrow":"A KEYNOTE","text":"The slide is not the talk.","sub":"Designing decks that serve the speaker, not replace them.","notes":"Welcome. Today is about a simple idea: the slide is punctuation, not the script."},
+    {"n":2,"type":"QUESTION","accent":"SOFT","motif":"converge","text":"What is a slide actually for?","notes":"Ask it plainly. Most decks answer this wrong."},
+    {"n":3,"type":"STATEMENT","accent":"GOLD","motif":"none","text":["Not a teleprompter.","A single beat the room can feel."],"accentLineIdx":1,"notes":"A slide is not where you hide your notes. It is one beat, felt at a glance."},
+    {"n":4,"type":"WORD","accent":"GREEN","motif":"spark","kicker":"THE UNIT","text":"One idea.","notes":"The unit of a great deck is one idea per slide. Nothing more."},
+    {"n":5,"type":"PIPELINE","accent":"BLUE","kicker":"THE METHOD","text":"From script to slides.","nodes":["Script","Explode","Notes","Build","QA"],"subs":["the talk","one idea each","per slide","render","render & look"],"notes":"The method: take the script, explode it to one idea per slide, write the notes, build, and check by eye."},
+    {"n":6,"type":"TRIAD","accent":"BLUE","motif":"grid","kicker":"THREE RULES","items":[{"text":"Big type. Heavy negative space.","accent":"BLUE"},{"text":"One idea — never a paragraph.","accent":"GREEN"},{"text":"The speaker carries the detail.","accent":"GOLD"}],"notes":"Three rules: big type with room to breathe, one idea per slide, and let the speaker carry the detail."},
+    {"n":7,"type":"CLOSE","accent":"BLUE","motif":"arc","kicker":"THE TAKEAWAY","text":"Make the slide disappear behind the idea.","sub":"Thank you.","notes":"If people remember the idea and not the slide, you have done it right. Thank you."}
+  ]
+}

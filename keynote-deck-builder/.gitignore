@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+package-lock.json
+
+# build output / QA renders
+*.pptx
+*.pdf
+_review/
+render_*/
+*.jpg
+*.jpeg
+*.png
+
+# scratch artifacts (outlines/scripts are authored per-talk; keep your own out of the repo)
+*_outline.json
+*_script.json
+!references/*.json
+
+# os / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

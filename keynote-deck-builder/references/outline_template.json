@@ -1,0 +1,15 @@
+{
+  "_comment": "Phase 0 artifact and source of truth for a Keynote Deck Builder deck. One slide object per idea. Required per slide: n (1-based), type (TITLE|STATEMENT|WORD|QUESTION|STEP|PIPELINE|TRIAD|CLOSE), and the content fields that type uses (see references/../SLIDE_TYPES.md). Optional everywhere: accent (BLUE|GREEN|GOLD|PINK|VIOLET|SOFT), motif (orbit|ripple|nodes|road|branch|spark|converge|grid|arc|none), notes (speaker script for this beat; baked into PowerPoint notes). No double-quotes inside string values; use single quotes for quoted phrases. Keep on-slide text SHORT — the slide is punctuation behind the spoken line, not a paragraph.",
+  "deck_title": "Short_Name",
+  "theme_hint": "navy",
+  "slides": [
+    {"n":1,"type":"TITLE","accent":"BLUE","motif":"orbit","eyebrow":"EVENT · SESSION","text":"Talk Title","sub":"One-line framing of the talk.","notes":"Opening line(s) the speaker says here."},
+    {"n":2,"type":"QUESTION","accent":"SOFT","motif":"converge","text":"The single question that frames the talk?","notes":"Pose the question; let it sit."},
+    {"n":3,"type":"STATEMENT","accent":"GOLD","motif":"road","text":["A line in white.","A line in the accent color."],"accentLineIdx":1,"notes":"Deliver the contrast. accentLineIdx colors that line in the accent."},
+    {"n":4,"type":"WORD","accent":"GREEN","motif":"spark","kicker":"SECTION LABEL","text":"OneWord.","sub":"Optional small subline.","notes":"A single hero word as a hard beat."},
+    {"n":5,"type":"STEP","accent":"BLUE","num":1,"kicker":"THE PATTERN","text":"The step, stated as an action.","sub":"One supporting line.","notes":"Say step one. (Big faint number is decorative.)"},
+    {"n":6,"type":"PIPELINE","accent":"BLUE","text":"A sequence — left to right.","nodes":["Stage 1","Stage 2","Stage 3","Stage 4"],"subs":["under each","node, a","short","gloss"],"notes":"Walk the pipeline; final node is highlighted."},
+    {"n":7,"type":"TRIAD","accent":"BLUE","motif":"grid","kicker":"THREE THINGS","items":[{"text":"First point.","accent":"BLUE"},{"text":"Second point.","accent":"GREEN"},{"text":"Third point.","accent":"GOLD"}],"notes":"Three parallel points; each gets an accent bar."},
+    {"n":8,"type":"CLOSE","accent":"BLUE","motif":"arc","kicker":"THE ASK","text":"The closing line.","sub":"Thank you.","notes":"Land the close and thank the room."}
+  ]
+}
