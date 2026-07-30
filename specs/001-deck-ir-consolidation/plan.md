@@ -134,7 +134,10 @@ packs/
 └── storyboard/                  # target: non-slide view
 
 tools/
-└── verify_deck.py               # Python verifier, JSON on stdout
+├── verify_deck.py               # Python verifier, JSON on stdout
+└── …                            # absorbed post-processing utilities (handout, image-summary)
+
+out/                             # build output — generated, untracked, never authored
 
 references/                      # progressive-disclosure docs, "When to read this" headers
 
@@ -154,8 +157,20 @@ skills. The current five-skill layout is what produced the duplication — each 
 carried its own `scripts/`, `references/`, and verifier. Collapsing to one `src/` with
 `packs/` as the only extension point is the structural expression of Principle IV.
 
-`tools/verify_deck.py` sits outside `src/` deliberately: it is the one component in a
-different runtime, and the directory boundary marks the subprocess boundary.
+`tools/` sits outside `src/` deliberately. It holds everything that is *not* the Node
+pipeline: `verify_deck.py`, whose directory boundary marks the subprocess boundary of the
+one component in a different runtime, and the absorbed post-processing utilities, which
+act on finished artifacts rather than on the plan and so are not pipeline stages.
+
+`out/` is generated and untracked. It appears here only so that every directory a task
+references is documented; nothing is ever authored into it.
+
+**On FR-004 ("rendered output MUST NOT be edited")**: this is enforced *by absence*.
+No command accepts a built artifact as an input to be modified, and no command treats a
+hand-edited artifact as verified — `verify` always re-derives its expectations from the
+plan. There is deliberately no guard rail beyond that, because the only way to edit
+output is to leave the tool entirely, and a tool cannot prevent that. Recorded explicitly
+so the absence reads as a decision rather than an oversight.
 
 The superseded skill directories (`presentation-studio/`, `keynote-deck-builder/`,
 `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`,
