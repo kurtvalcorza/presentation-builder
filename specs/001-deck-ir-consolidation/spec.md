@@ -169,6 +169,9 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **FR-028**: Project documentation MUST describe the consolidated pipeline and MUST NOT present superseded components as current.
 - **FR-029**: Attribution records for third-party material MUST be accurate and current at every point where material is absorbed.
 - **FR-030**: Material absorbed from elsewhere MUST bring only its publishable content; working artifacts carrying denied terms MUST NOT be absorbed.
+- **FR-031**: The document/print delivery format MUST be produced by converting the presentation-file output using the render toolchain already required for visual review. Where that toolchain is unavailable, the document format MUST be reported as unavailable rather than silently skipped.
+- **FR-032**: All eight capabilities of the superseded router MUST be preserved, reclassified as: deck-producing delivery formats; non-slide delivery formats rendered from the same plan (spoken script, producer rundown, storyboard); and advisory utilities that sit alongside the pipeline rather than inside it.
+- **FR-033**: The superseded standalone research-builder repository MUST remain published and MUST carry a deprecation notice directing readers to this project.
 
 ### Key Entities
 
@@ -194,7 +197,9 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **SC-007**: Every capability offered by the superseded components is accounted for — replaced or explicitly dropped with a rationale — with none unaccounted for.
 - **SC-008**: An author can go from long-form source to an approved plan without hand-writing any structured data.
 - **SC-009**: Changing a deck's visual vocabulary or theme requires no edit to slide content.
-- **SC-010**: A reader consulting project documentation finds exactly one documented way to build a deck.
+- **SC-010**: A reader consulting this project's documentation finds exactly one documented way to build a deck.
+- **SC-011**: The superseded standalone repository carries a deprecation notice, so a reader arriving there is directed here within the first screen of its documentation.
+- **SC-012**: All eight superseded router capabilities remain available after consolidation, with zero dropped.
 
 ## Assumptions
 
@@ -206,11 +211,18 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **Web-delivered decks may load fonts from a public font service.** Otherwise, delivered artifacts are self-contained and work offline.
 - **The audience is deck authors and the maintainers of this suite**, not end-recipients of the decks. Recipients only ever see finished artifacts.
 - **Approval is a human checkpoint.** Automated intake proposes; a person approves before rendering.
+- **Two deck builders remain publicly discoverable.** The superseded standalone repository stays published rather than being archived, so the single-documented-path outcome applies to this repository's documentation, not to the public surface as a whole. The deprecation notice required by FR-033 is the accepted mitigation.
+- **Non-slide outputs are treated as delivery formats, not as separate tools.** A spoken script, a producer rundown, and a storyboard are views of the same deck plan. If any of them turns out not to fit the shared plan, that is evidence the plan is under-specified and is fixed in the plan format — not worked around by re-separating the capability.
 
-## Clarifications Needed
+## Clarifications
 
-- **[NEEDS CLARIFICATION: Is a document/print delivery format produced directly, or derived from another delivery format?]** Producing it directly gives control over pagination and layout but means a third full renderer to build and maintain. Deriving it from an existing format is far cheaper but inherits that format's layout constraints. The choice materially changes the size of this feature.
+### Session 2026-07-30
 
-- **[NEEDS CLARIFICATION: Do the eight existing router modes survive as first-class capabilities, or does the consolidation reduce them?]** Several are not deck-building at all — they produce rundowns, storyboards, and comparisons. They can become delivery format packs, become separate post-processing utilities, or be dropped. This determines whether the feature absorbs eight modes or a smaller number, and is the single largest driver of scope.
+**Q: Is the document/print delivery format produced directly, or derived from another format?**
+**A: Derived by converting the presentation-file output**, using the same render toolchain already required for the visual review gate. This adds a delivery format at near-zero cost rather than building a third renderer. Consequence: the document format is unavailable wherever that toolchain is absent — the same environments that already cannot run the visual review gate, so the degradation is consistent rather than a new class of failure. Captured as FR-031.
 
-- **[NEEDS CLARIFICATION: What becomes of the standalone research-builder repository once its content is absorbed?]** It is public and independently discoverable. It can be archived with a pointer here, left published and frozen, or deleted. This is an outward-facing decision affecting anyone who has already found or linked it.
+**Q: Do the eight existing router modes survive, convert, or get dropped?**
+**A: All eight survive, reclassified into three kinds.** They were never eight peers. Three produce decks and become delivery formats. Three produce non-slide views of the same deck — a spoken script, a producer rundown, a storyboard — and become non-slide delivery formats over the same plan, which is itself a strong test of whether the shared plan is genuinely presentation-agnostic. Two are advisory (comparing versions, choosing a structure) and become utilities alongside the pipeline rather than stages within it. Nothing is dropped. Captured as FR-032.
+
+**Q: What becomes of the standalone research-builder repository once its content is absorbed?**
+**A: It stays published and active, carrying a deprecation notice** that points to this project. Anything already depending on it keeps working. Accepted trade-off: two deck builders remain publicly discoverable, so the "one documented way to build a deck" outcome is scoped to this repository's own documentation rather than to the wider public surface, with the deprecation notice as the mitigation. SC-010 and SC-011 reflect this. Captured as FR-033.

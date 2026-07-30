@@ -13,7 +13,7 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
+- [x] No [NEEDS CLARIFICATION] markers remain
 - [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
@@ -44,20 +44,19 @@
   modified files rather than naming a module system, and SC-006 describes fail-closed
   behavior without naming the scanning mechanism.
 
-**Outstanding — blocks `/speckit-plan`:**
+**Iteration 2 — clarifications resolved (session 2026-07-30):**
 
-- Three `[NEEDS CLARIFICATION]` markers remain in the *Clarifications Needed* section.
-  All three are scope-level, which is the highest-impact category, and none has a
-  defensible default:
-  1. Whether the document/print format is rendered directly or derived from another
-     format — changes the number of renderers to build.
-  2. Whether the eight router modes survive, convert, or are dropped — the single
-     largest scope driver in the feature.
-  3. Disposition of the standalone research-builder repository — outward-facing and
-     affects existing links.
+All three scope-level markers were answered by the author and folded into the spec as
+FR-031, FR-032, FR-033, SC-011, SC-012, and two new assumptions. No markers remain.
 
-  These are presented to the author for decision. Once answered, replace the markers
-  with the chosen answers, re-run this checklist, and tick the box above.
+One answer created an internal contradiction that had to be reconciled rather than
+recorded as-is: leaving the superseded standalone repository published and active
+conflicts with SC-010 as originally worded ("a reader finds exactly one documented way
+to build a deck"), because two builders stay publicly discoverable. The author was shown
+this trade-off in the question and chose it deliberately. SC-010 is therefore scoped to
+*this project's* documentation, SC-011 adds the deprecation-notice requirement as the
+agreed mitigation, and the residual exposure is recorded in Assumptions rather than left
+as an unstated conflict between two success criteria.
 
 **Deliberately deferred (not defects):**
 
