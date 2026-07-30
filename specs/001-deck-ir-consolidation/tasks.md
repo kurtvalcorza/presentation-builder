@@ -38,7 +38,7 @@ Single project rooted at the repository (plan.md → Structure Decision): `bin/`
 **Purpose**: Project skeleton and toolchain. No feature behaviour yet.
 
 - [ ] T001 Create the directory skeleton (`bin/`, `src/plan/`, `src/packs/`, `src/gates/`, `src/scrub/`, `packs/`, `tools/`, `tests/`, `examples/`, `references/`) per plan.md Structure Decision
-- [ ] T002 Initialize the Node project in `package.json` with a JSON Schema 2020-12 validator and the presentation-file generation library; pin versions and set `"type": "module"`
+- [ ] T002 Initialize the Node project in `package.json` with a JSON Schema 2020-12 validator, the presentation-file generation library, and a **Node PDF rasterizer** (used by the visual gate in T028 so no image-extraction system binary is required); pin versions and set `"type": "module"`
 - [ ] T003 [P] Add `tools/requirements.txt` pinning the Python presentation-file reader used by the verifier
 - [ ] T004 [P] Configure linting and formatting in `eslint.config.mjs` and `.editorconfig`
 - [ ] T005 [P] Add the test runner configuration in `package.json` with separate `contract`, `golden`, `gates`, `isolation`, and `scrub` suites per research R9
@@ -57,7 +57,7 @@ this phase.** Nothing below can start until it completes.
 - [ ] T010 Implement the unified error report shape in `src/plan/errors.mjs` so every failure carries `slide_id`, `slide_index`, `path`, `code`, and `message` (FR-003)
 - [ ] T011 Implement pack discovery by directory scan in `src/packs/discover.mjs` — scan `packs/`, load each `pack.json`, assert `id` equals the directory name. **No registry file** (research R2)
 - [ ] T012 Implement manifest validation for both pack kinds in `src/packs/manifest.mjs` per `contracts/pack-contract.md`
-- [ ] T013 Implement the external-toolchain capability probe in `src/packs/capabilities.mjs`, returning per-toolchain availability for honest degradation (research R6)
+- [ ] T013 Implement the external-toolchain capability probe in `src/packs/capabilities.mjs`, returning per-toolchain availability for honest degradation (research R6). **Do not probe PATH alone** — check well-known install locations too, and honour an explicit override environment variable. Measured on the development machine: the office converter is installed at `C:\Program Files\LibreOffice\program\soffice.exe` but is **not on PATH**, so a PATH-only probe reports it unavailable and silently disables both the visual gate and the document target on the very machine used to test them
 - [ ] T014 Implement the three-state gate result model (`passed` / `failed` / `not_run`) and `overall` rollup in `src/gates/report.mjs`, where any `not_run` yields `incomplete` and never `passed` (FR-019)
 - [ ] T015 Implement phase-named, non-overwriting backups in `src/gates/backup.mjs` (FR-021, research R8)
 - [ ] T016 Implement the command surface skeleton in `bin/deck.mjs` with subcommands `packs`, `validate`, `render`, `verify`, `build`, `scrub` and the exit-code contract 0/1/2/3/4 per `contracts/cli-and-verifier.md`
@@ -94,7 +94,7 @@ matching content, slide count, and notes, with nothing authored twice
 ### Verification and delivery
 
 - [ ] T027 [US1] Merge the two existing Python verifiers into `tools/verify_deck.py`, porting the hard-fail checks (`notes_missing`, `slide_count_mismatch`, `plan_content_absent`, `render_artifact`) and emitting JSON on stdout per `contracts/cli-and-verifier.md`; it takes resolved rules as input and has **no knowledge of packs**
-- [ ] T028 [US1] Implement the visual gate in `src/gates/visual.mjs`, rendering per-slide images into a fresh directory each run and reporting `not_run` with a reason when its toolchain is absent
+- [ ] T028 [US1] Implement the visual gate in `src/gates/visual.mjs` as a two-hop chain — office converter for presentation-file → PDF, then the **Node PDF rasterizer from T002** for PDF → per-slide images — writing into a fresh directory each run and reporting `not_run` with a reason when the office converter is absent. **Do not shell out to an image-extraction binary**: the office converter alone cannot do this (converting a presentation straight to an image format exports only the first slide), and doing the second hop in Node removes the last system binary from the contract, leaving the office converter as the single external dependency
 - [ ] T029 [US1] Implement gate orchestration in `src/gates/run.mjs` wiring T027 and T028 into the three-state report, refusing delivery unless `overall` is `passed` (FR-018)
 - [ ] T030 [US1] Implement `build` in `bin/deck.mjs` as validate → render → verify, with per-target reporting and partial-success handling that exits non-zero (FR-020)
 - [ ] T031 [US1] Implement FR-011 in `src/plan/constraints.mjs` — report at validation time any slide type a selected target's `supported_types` excludes, **before** rendering

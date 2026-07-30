@@ -37,7 +37,7 @@
   duplicated builders as treating "a JSON plan" as the source of truth, naming a
   serialization format in a section meant to be format-agnostic. Changed to
   "a structured plan". No other technology names survive in the spec — the pptx
-  rendering library, the Marp toolchain, the LibreOffice/poppler render dependency,
+  rendering library, the Marp toolchain, the office-converter render dependency,
   and the JSON schema technology are all referred to by capability only.
 
 - *Success criteria technology-agnostic* PASSED on review. SC-002 and SC-003 count

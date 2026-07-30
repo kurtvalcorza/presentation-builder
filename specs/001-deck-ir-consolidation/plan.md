@@ -27,8 +27,9 @@ result so "could not check" is never reported as "verified".
 Python 3.9+ for the presentation-file verifier only
 
 **Primary Dependencies**: a Node presentation-file generation library; a JSON Schema
-2020-12 validator; a Python presentation-file reader; a headless office converter and an
-image extraction tool for the visual gate and the document format
+2020-12 validator; a Node PDF rasterizer; a Python presentation-file reader; and a
+headless office converter — the **single external system dependency**, shared by the
+visual gate and the document format
 
 **Storage**: files on disk. The deck plan is the durable artifact; built outputs are
 regenerable and deliberately untracked

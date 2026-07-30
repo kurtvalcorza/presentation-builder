@@ -10,10 +10,15 @@ user story and its success criteria.
 
 | Requirement | Needed for | If absent |
 |---|---|---|
-| Node (current LTS) | core, renderers, scrub check | nothing runs |
+| Node (current LTS) | core, renderers, PDF rasterizing, scrub check | nothing runs |
 | Python 3.9+ with a presentation-file reader | structural gate | gate reports `not_run`, exit 3 |
 | Headless office converter | visual gate, document format | both report unavailable, exit 3 |
-| Image extraction tool | visual gate | visual gate reports `not_run` |
+
+The office converter is the **only** external system dependency. Per-slide image
+extraction for the visual gate is done in Node from the converted PDF, so there is no
+separate image tool to install. If the converter is installed but not on `PATH` — the
+common case on Windows — the capability probe finds it at its well-known location or via
+the override environment variable; it does not report unavailable.
 
 The degradation path is itself a scenario — see Scenario 5. Do not treat a missing
 toolchain as a blocked quickstart; treat it as the case that must report honestly.
