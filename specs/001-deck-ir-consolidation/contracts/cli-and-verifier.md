@@ -13,10 +13,25 @@ lives only in the plan (Principle I).
 |---|---|
 | `packs` | List discovered packs, their kind, and whether their toolchains are available. |
 | `validate <plan>` | Validate envelope + content + declared rules. Renders nothing. |
-| `render <plan> --target <id>…` | Render to one or more delivery formats. |
-| `verify <artifact> --plan <plan>` | Run the gates against a built artifact. |
-| `build <plan> --target <id>…` | `validate` → `render` → `verify`, refusing delivery unless gates pass. |
-| `scrub` | Publish-safety check over tracked files. |
+| `compile <plan>` | Compile to Render IR and run the FR-011 primitive-support check. Renders nothing. |
+| `render <plan> --target <id>…` | Render into **staging**. Never writes to the delivered location. |
+| `verify --build <record>` | Run the gates against a staged build. |
+| `verify <artifact>` | Re-verify a pre-existing artifact. Reports provenance as **unestablished** (see below). |
+| `promote --build <record>` | Atomically move staged artifacts to their delivered location. Refuses unless gates passed. |
+| `build <plan> --target <id>…` | `validate` → `compile` → `render` → `verify` → `promote`. The normal path. |
+| `scrub [--staged]` | Publish-safety check over tracked **and candidate** files. |
+
+### On `verify <artifact>` without a build record
+
+This form exists because re-verifying a delivered deck is a legitimate need. It is
+**not** a way to launder a hand-edited artifact into a verified one: with no build record,
+the system cannot establish that the artifact is the output of any particular plan, and it
+says so. The two claims are reported differently and MUST NOT be conflated:
+
+- *"This is the verified output of plan X, build Y."* — requires a build record.
+- *"These checks passed against this file; provenance not established."* — everything else.
+
+`promote` accepts only the first.
 
 ### Exit codes
 
@@ -39,13 +54,22 @@ Renders every requested target, then reports per target (FR-020). Partial succes
 reported as such and exits non-zero — never presented as full success.
 
 ```text
-✓ presentation-file   deck.pptx          gates: structural PASS · visual PASS
-✓ web                 index.html         gates: structural PASS · visual PASS
-✗ document            —                  unavailable: office-converter not found
-✓ spoken-script       script.md          gates: structural PASS · visual N/A
+✓ presentation-file   deck.pptx     structural PASS   visual PASS (12 slides, automated)
+✓ web                 index.html    structural PASS   visual PASS (12 sections, automated)
+✗ document            —             unavailable: office-converter not found
+✓ spoken-script       script.md     structural PASS   visual N/A (no visual surface)
 
-3 of 4 targets delivered. Exit 3 (incomplete).
+3 of 4 targets promoted. Exit 3 (incomplete).
 ```
+
+Every `structural PASS` above is backed by that format's own verification adapter
+(FR-037). A format with no adapter cannot report a structural result at all — the earlier
+draft of this contract printed passing structural gates for formats that had no verifier,
+which is the defect FR-016 and SC-014 now close.
+
+`visual N/A` is distinct from `visual not_run`: a plain-text artifact has no visual
+surface, so there is nothing to inspect; a missing toolchain means there *is* something to
+inspect and nobody looked. Only the latter forces `incomplete`.
 
 ---
 
@@ -116,8 +140,15 @@ Default denylist path is the repository-local untracked list. Behaviour:
 
 1. **Denylist missing or unreadable → exit 4.** Never exit 0. This is the whole point
    (FR-023): a deleted denylist must not read as "nothing to find".
-2. Scan **tracked files only**. Untracked working artifacts legitimately contain denied
-   terms and are excluded by ignore pattern (FR-025).
+2. Scan **tracked files and candidate files** — anything staged, or newly present in the
+   working tree and not excluded by ignore pattern (FR-022). Ignored paths are skipped
+   deliberately: legitimate working artifacts do contain denied terms, and the ignore
+   rules are what keep them unpublished, so the check agrees with them rather than
+   fighting them.
+
+   > A tracked-only scan has a hole exactly where it matters most. The absorption step
+   > runs this check immediately after copying external material in — at which point that
+   > material is untracked, and a tracked-only scan inspects none of it (R15).
 3. Apply each entry in its declared mode — case-sensitive whole word, case-insensitive
    word-with-suffix, or raw regex (FR-024).
 4. Any hit → exit 1, reporting file, line, matched term, and mode.
@@ -132,3 +163,14 @@ the current corpus during specification and produced four false positives — th
 ordinary English words containing an acronym as a substring, and one where a currency
 code collides with a programming language name. A check with a known false-positive rate
 gets bypassed, and a bypassed check protects nothing (R7).
+
+## Commit-time enforcement
+
+The check runs from a repository hook on every commit, scanning staged content, and a
+non-zero exit blocks the commit (FR-040).
+
+Documenting it as "the required pre-commit check" — which the earlier draft did — is a
+habit, not a control. Principle VI requires publish safety to be verified on every commit,
+and a step someone has to remember is not verification. Installing the hook is part of
+project setup, and its absence is itself reported by `packs`.
+

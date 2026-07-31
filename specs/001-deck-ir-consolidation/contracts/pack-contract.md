@@ -38,7 +38,8 @@ packs/
     "STATEMENT": { "schema": "types/statement.schema.json" },
     "QUESTION":  { "schema": "types/question.schema.json" }
   },
-  "themes": ["navy", "black", "light"],
+  "compiler": "compile.mjs",
+  "themes": { "navy": "themes/navy.json", "black": "themes/black.json" },
   "default_theme": "navy",
   "attribution_styles": ["none"],
   "rules": "rules.json"
@@ -50,10 +51,29 @@ packs/
 | `id` | yes | MUST equal the directory name. Discovery relies on it. |
 | `kind` | yes | `vocabulary`. |
 | `slide_types` | yes | Type name → path to its content schema, relative to the pack. |
-| `themes` | yes | At least one. |
+| `compiler` | yes | Entry point translating slide content into layout primitives. |
+| `themes` | yes | Theme name → token file. At least one. |
 | `default_theme` | yes | MUST appear in `themes`. |
 | `attribution_styles` | no | Omitted means the vocabulary carries no attributions. |
 | `rules` | no | Path to declared verification rules. |
+
+### Compiler entry point
+
+```
+compile({ slide, theme_tokens }) → { primitives: [LayoutPrimitive], notes, attributions }
+```
+
+Contract obligations:
+
+- MUST emit only primitive kinds from the pipeline's closed set (see `render-ir.md`).
+- MUST NOT reference any delivery format id. A compiler containing the string
+  `presentation-file` or `web` is a defect, and SC-013 is checked by exactly that search.
+- MUST NOT branch on output format in any form — no "if rendering to web" logic.
+- MUST preserve the slide `id` onto the unit it produces.
+
+A vocabulary needing a primitive that does not exist raises it against the **pipeline's
+primitive set** (FR-036). It does not invent one locally, and it never asks a delivery
+format to special-case it.
 
 ### Declared rules
 
@@ -93,7 +113,8 @@ does not block).
   "id": "document",
   "kind": "target",
   "produces": "document",
-  "supported_types": "*",
+  "supported_primitives": "*",
+  "verification_adapter": "extract.mjs",
   "derives_from": "presentation-file",
   "requires": ["office-converter"]
 }
@@ -104,39 +125,85 @@ does not block).
 | `id` | yes | MUST equal the directory name. |
 | `kind` | yes | `target`. |
 | `produces` | yes | `presentation-file` \| `web` \| `document` \| `text`. |
-| `supported_types` | yes | Array of slide type names, or `"*"`. Drives FR-011. |
+| `supported_primitives` | yes | Array of **primitive kinds**, or `"*"`. Drives FR-011. |
+| `verification_adapter` | yes | Extraction entry point (FR-037). |
 | `requires` | no | External toolchain ids. Unmet → reported unavailable (FR-031, R6). |
 | `derives_from` | no | Another format id. Mutually exclusive with implementing `render`. |
 | `entry` | conditional | Renderer entry point. Required unless `derives_from` is set. |
 
+**`supported_primitives`, never `supported_types`.** A target listing slide type names
+would be coupled to the vocabularies that define them — the exact defect R11 removes. The
+field name is deliberately not the obvious one, so that writing the coupled version
+requires inventing a field the manifest validator will reject.
+
 ### Renderer entry point
 
 ```
-render({ plan, vocabulary, theme, outDir, capabilities }) → RenderResult
+render({ renderIR, stagingDir, capabilities }) → RenderResult
 ```
 
 `RenderResult`: `{ ok, artifacts: [path], warnings: [string] }`.
 
 Contract obligations:
 
-- MUST NOT mutate `plan`.
-- MUST NOT read the source material — the plan is the only input (Principle I).
-- MUST NOT write outside `outDir`.
-- MUST fail rather than silently omit a slide it cannot render.
+- Receives the **Render IR**, not the deck plan. It has no access to slide types, the
+  vocabulary id, or the plan (FR-034).
+- MUST NOT mutate `renderIR`.
+- MUST NOT read source material (Principle I).
+- MUST write only inside `stagingDir`. Writing to a delivered location is forbidden —
+  promotion is the pipeline's job, after gates pass (FR-038, R14).
+- MUST fail rather than silently omit a unit it cannot render.
 - A pack declaring `derives_from` MUST NOT implement `render`; it receives the upstream
-  format's artifacts and converts them. This is what stops the document format becoming
-  a third renderer (R4).
+  format's staged artifacts and converts them (R4).
+
+### Verification adapter entry point
+
+```
+extract({ artifactPath }) → { units: [{ id, content, notes, attributions }], count }
+```
+
+Contract obligations:
+
+- **Extracts only. Never judges.** The shared verifier does all comparison against the
+  plan, so verification rules live in one place and pack knowledge stays out of the
+  verifier (R13).
+- Reports a field as absent when the format genuinely cannot carry it — a plain-text
+  artifact has no notes channel — rather than fabricating a value.
+- MUST NOT read the plan or the Render IR. It reads the artifact and nothing else;
+  otherwise it could "extract" what it already knows should be there, which would make
+  structural verification vacuous.
 
 ---
 
-## Isolation test
+## Isolation tests — both directions
 
-The mechanical check that Principle IV holds — this is a test, not a review habit (R9):
+The mechanical check that Principle IV holds. This is a test, not a review habit (R9).
+
+**It must run in both directions.** The original single-direction version would not have
+caught the defect an external review found, because that defect edited a *sibling pack*
+rather than the core — and a test that only watches the core cannot see it.
+
+**Direction A — add a vocabulary:**
 
 1. Record the file-level state of the repository.
-2. Add a throwaway pack directory with a minimal valid manifest.
-3. Run discovery, validate a plan, render.
-4. Assert the only files added or modified are inside the new pack's directory.
+2. Add a throwaway vocabulary pack with a minimal manifest, content schema, and compiler.
+3. Run discovery, validate a plan, compile, render to an *existing* delivery format.
+4. Assert every changed file is inside the new pack's directory. **In particular, assert
+   no delivery format pack changed.**
 
-If that assertion fails, the abstraction has leaked and the schema is fixed first,
-per Principle IV and User Story 2 scenario 3.
+**Direction B — add a delivery format:**
+
+1. Record the file-level state.
+2. Add a throwaway target pack with a minimal manifest, renderer, and extraction adapter.
+3. Render an *existing* vocabulary's plan to it.
+4. Assert every changed file is inside the new pack's directory. **In particular, assert
+   no vocabulary pack changed.**
+
+**Direction C — the reference check (SC-013):** search every vocabulary pack for any
+delivery format id, and every delivery format pack for any vocabulary id or slide type
+name. Both must return nothing. This catches coupling that a diff would miss because it
+was written that way from the start rather than introduced as an edit.
+
+If any of the three fails, the shared layer is at fault and is fixed there — a missing
+primitive is added to the pipeline's set, not worked around in a pack (FR-036, User Story 2
+scenario 3).

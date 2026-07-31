@@ -48,13 +48,14 @@ A maintainer adds a new slide vocabulary, or a new delivery format, by adding a 
 
 **Why this priority**: This is the reason to consolidate rather than tidy. If extension still requires editing shared code, the suite will grow a fourth duplicate the same way it grew the second and third. This story is the test that the seam exists.
 
-**Independent Test**: Add a deliberately trivial new vocabulary pack and a trivial new delivery format pack, then confirm via file-level diff that no file outside each new pack's own directory was modified.
+**Independent Test**: Add a deliberately trivial new vocabulary pack and a trivial new delivery format pack, then confirm via file-level diff that no file outside each new pack's own directory was modified — **in both directions**. Adding the vocabulary must not touch any delivery format, and adding the delivery format must not touch any vocabulary.
 
 **Acceptance Scenarios**:
 
-1. **Given** the consolidated pipeline, **When** a maintainer adds a new delivery format pack, **Then** the change touches only that pack's directory and the pack registry, and every pre-existing deck still delivers unchanged.
-2. **Given** the consolidated pipeline, **When** a maintainer adds a new slide vocabulary pack, **Then** decks authored in existing vocabularies are unaffected and require no re-approval.
-3. **Given** a proposed pack that cannot be added without editing the shared schema, **When** the maintainer attempts it, **Then** the schema gap is treated as a defect in the schema and fixed there first, rather than worked around inside the pack.
+1. **Given** the consolidated pipeline, **When** a maintainer adds a new delivery format pack, **Then** the change touches only that pack's own directory, **no vocabulary pack is edited**, and every pre-existing deck still delivers unchanged.
+2. **Given** the consolidated pipeline, **When** a maintainer adds a new slide vocabulary pack, **Then** the change touches only that pack's own directory, **no delivery format pack is edited**, and decks authored in existing vocabularies are unaffected and require no re-approval.
+3. **Given** a proposed pack that cannot be added without editing the shared schema or another pack, **When** the maintainer attempts it, **Then** the gap is treated as a defect in the shared layer and fixed there first, rather than worked around inside the pack.
+4. **Given** N vocabularies and M delivery formats, **When** either is added, **Then** the work required is proportional to one, not to the count of the other.
 
 ---
 
@@ -81,7 +82,7 @@ A maintainer commits work to this public repository with confidence that no work
 
 **Why this priority**: This repository is public and is a genericized fork of private material. The failure is irreversible once pushed, and the current protection is vigilance plus an incomplete ignore list — a single bulk add of an untracked working directory would publish client material.
 
-**Independent Test**: Introduce a known-bad string into a tracked file and confirm the check fails; remove the term list entirely and confirm the check also fails rather than reporting success.
+**Independent Test**: Introduce a known-bad string into a tracked file and confirm the check fails; introduce one into a **newly copied, not-yet-tracked** file and confirm it also fails; remove the term list entirely and confirm the check fails rather than reporting success; and confirm a commit carrying a denied term is refused without anyone having to remember to run the check.
 
 **Acceptance Scenarios**:
 
@@ -137,7 +138,7 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **FR-008**: Delivery formats MUST be supplied as self-contained packs.
 - **FR-009**: Adding a vocabulary pack or a delivery format pack MUST NOT require modifying the shared pipeline, the plan format, or any other pack.
 - **FR-010**: Each vocabulary pack MUST declare the slide types it offers and the rules unique to it, and the shared verifier MUST enforce those declared rules without special-casing individual packs.
-- **FR-011**: The system MUST report, at plan approval time, any slide type in the plan that a selected delivery format cannot render.
+- **FR-011**: The system MUST report, at plan approval time, any content in the plan that a selected delivery format cannot render — determined by compiling the plan to layout primitives and comparing against the primitives that format supports, never by the format inspecting slide types directly.
 
 **Intake and review**
 
@@ -148,8 +149,8 @@ Someone arriving at this project finds one documented way to build a deck. The s
 
 **Verification and delivery**
 
-- **FR-016**: The system MUST run a structural verification of every deck before delivery, failing on: a slide missing speaker notes, a slide count that disagrees with the plan, plan content absent from the rendered slide, and rendering artifacts that indicate a broken build.
-- **FR-017**: The system MUST run a visual review pass over every slide before delivery.
+- **FR-016**: The system MUST run a structural verification of **every delivered artifact, in every delivery format**, before delivery — failing on: a slide or section missing speaker notes, a count that disagrees with the plan, plan content absent from the delivered artifact, and rendering artifacts that indicate a broken build. Verification MUST NOT be limited to one format.
+- **FR-017**: The system MUST run a visual review over every slide before delivery, and that review MUST produce a recorded verdict identifying what was inspected and what was found. Producing images is preparation for the review, not the review itself; a gate that only rasterizes MUST NOT report `passed`.
 - **FR-018**: The system MUST refuse to deliver a deck whose verification has not passed.
 - **FR-019**: When a verification environment is unavailable, the system MUST state which checks did not run and MUST NOT report the deck as fully verified.
 - **FR-020**: When delivering to several formats and one fails, the system MUST report which succeeded and which did not.
@@ -157,7 +158,7 @@ Someone arriving at this project finds one documented way to build a deck. The s
 
 **Publish safety**
 
-- **FR-022**: The system MUST provide a check that scans tracked files for denied work-identifying terms and reports file, line, and matched term for every hit.
+- **FR-022**: The system MUST provide a check that scans for denied work-identifying terms and reports file, line, and matched term for every hit. Its scope MUST cover tracked files **and** candidate files — anything staged, or newly added to the working tree and not excluded by ignore pattern. A tracked-only scan cannot see material that has just been copied in, which is precisely when the risk is highest.
 - **FR-023**: That check MUST fail with an explicit error when its term list is absent or unreadable, and MUST NOT report a clean result in that condition.
 - **FR-024**: That check MUST NOT report ordinary words that merely contain a denied acronym as a substring.
 - **FR-025**: Working and build artifacts MUST be excluded from version control by pattern rather than by enumerating individual files.
@@ -172,6 +173,27 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **FR-031**: The document/print delivery format MUST be produced by converting the presentation-file output using the render toolchain already required for visual review. Where that toolchain is unavailable, the document format MUST be reported as unavailable rather than silently skipped.
 - **FR-032**: All eight capabilities of the superseded router MUST be preserved, reclassified as: deck-producing delivery formats; non-slide delivery formats rendered from the same plan (spoken script, producer rundown, storyboard); and advisory utilities that sit alongside the pipeline rather than inside it.
 - **FR-033**: The superseded standalone research-builder repository MUST remain published and MUST carry a deprecation notice directing readers to this project.
+
+**Layering and extension (added after external review)**
+
+- **FR-034**: Vocabularies and delivery formats MUST NOT know about each other. A vocabulary MUST translate its slide content into a shared set of layout primitives; a delivery format MUST render those primitives. Neither may reference the other's identifiers.
+- **FR-035**: The work of adding a vocabulary MUST be proportional to one vocabulary, and the work of adding a delivery format proportional to one format — never to the number of the other kind already present.
+- **FR-036**: The shared primitive set MUST be owned by the pipeline. A vocabulary needing a primitive that does not exist is a gap in the primitive set, closed there, and never worked around by a delivery format special-casing a vocabulary.
+- **FR-037**: Each delivery format MUST supply a verification adapter that extracts, from its own artifact type, the canonical content needed by structural verification: per-unit content, notes, attributions, and count.
+
+**Delivery boundary**
+
+- **FR-038**: Rendering MUST write only into a staging location. Artifacts MUST be promoted to their delivered location only after verification passes, and promotion MUST be atomic.
+- **FR-039**: Verification MUST be bound to what was actually rendered, via a build record identifying the plan and the artifacts it produced. The system MUST NOT report an artifact as verified when it cannot establish that the artifact is the one its plan produced.
+
+**Publish safety enforcement**
+
+- **FR-040**: The publish-safety check MUST run mechanically at commit time, not merely be documented as a step to remember. Its failure MUST block the commit.
+
+**Intake**
+
+- **FR-041**: Intake MUST be an invocable phase with declared supported input types, a defined output location, and an explicit approval state — not guidance prose alone.
+- **FR-042**: Intake MUST record, for every slide it proposes, the location in the source material that slide derives from, so attribution and figures can be traced back without re-reading the source.
 
 ### Key Entities
 
@@ -189,17 +211,22 @@ Someone arriving at this project finds one documented way to build a deck. The s
 ### Measurable Outcomes
 
 - **SC-001**: One deck plan produces every selected delivery format with zero content authored more than once.
-- **SC-002**: Adding a new delivery format modifies zero files outside that format's own pack directory and the pack registry.
-- **SC-003**: Adding a new slide vocabulary modifies zero files outside that vocabulary's own pack directory and the pack registry.
+- **SC-002**: Adding a new delivery format modifies zero files outside that format's own pack directory — in particular, zero vocabulary packs.
+- **SC-003**: Adding a new slide vocabulary modifies zero files outside that vocabulary's own pack directory — in particular, zero delivery format packs.
 - **SC-004**: The number of independent deck-building pipelines in the project falls from three to one.
 - **SC-005**: 100% of decks that fail verification are blocked from delivery.
 - **SC-006**: The publish-safety check reports zero false positives across the entire tracked corpus, and fails closed in 100% of runs where its term list is unavailable.
 - **SC-007**: Every capability offered by the superseded components is accounted for — replaced or explicitly dropped with a rationale — with none unaccounted for.
 - **SC-008**: An author can go from long-form source to an approved plan without hand-writing any structured data.
-- **SC-009**: Changing a deck's visual vocabulary or theme requires no edit to slide content.
+- **SC-009**: Changing a deck's **theme** requires no edit to slide content. Changing its **vocabulary** is a migration, not a re-theme: it either maps cleanly or reports precisely which content has no equivalent in the target vocabulary, and never silently coerces.
 - **SC-010**: A reader consulting this project's documentation finds exactly one documented way to build a deck.
 - **SC-011**: The superseded standalone repository carries a deprecation notice, so a reader arriving there is directed here within the first screen of its documentation.
 - **SC-012**: All eight superseded router capabilities remain available after consolidation, with zero dropped.
+- **SC-013**: No delivery format pack references any vocabulary identifier, and no vocabulary pack references any delivery format identifier — verifiable by search across the pack directories.
+- **SC-014**: Every delivery format has a verification adapter, so structural verification runs on 100% of delivered artifacts rather than on one format.
+- **SC-015**: Zero artifacts reach their delivered location without passing verification, and zero delivered artifacts exist that cannot be traced to the plan and build that produced them.
+- **SC-016**: The publish-safety check blocks 100% of commits containing a denied term, including terms in files added to the working tree in that same change.
+- **SC-017**: Every slide in a proposed plan traces to a location in the source material.
 
 ## Assumptions
 
@@ -225,4 +252,51 @@ Someone arriving at this project finds one documented way to build a deck. The s
 **A: All eight survive, reclassified into three kinds.** They were never eight peers. Three produce decks and become delivery formats. Three produce non-slide views of the same deck — a spoken script, a producer rundown, a storyboard — and become non-slide delivery formats over the same plan, which is itself a strong test of whether the shared plan is genuinely presentation-agnostic. Two are advisory (comparing versions, choosing a structure) and become utilities alongside the pipeline rather than stages within it. Nothing is dropped. Captured as FR-032.
 
 **Q: What becomes of the standalone research-builder repository once its content is absorbed?**
-**A: It stays published and active, carrying a deprecation notice** that points to this project. Anything already depending on it keeps working. Accepted trade-off: two deck builders remain publicly discoverable, so the "one documented way to build a deck" outcome is scoped to this repository's own documentation rather than to the wider public surface, with the deprecation notice as the mitigation. SC-010 and SC-011 reflect this. Captured as FR-033.
+
+**A: It stays published and active, carrying a deprecation notice** that points to this project.
+ Anything already depending on it keeps working. Accepted trade-off: two deck builders remain publicly discoverable, so the "one documented way to build a deck" outcome is scoped to this repository's own documentation rather than to the wider public surface, with the deprecation notice as the mitigation. SC-010 and SC-011 reflect this. Captured as FR-033.
+
+### Revision 2026-07-31 — external review
+
+An independent review of the completed package found five critical defects and blocked
+implementation. All were verified against the artifacts and accepted. The substantive
+changes to this specification:
+
+**The central abstraction failed its own test.** The task list required editing the
+presentation-file *delivery format* in order to add the research *vocabulary* — a direct
+violation of FR-009, in the very phase meant to prove additivity. The root cause was that
+delivery formats were designed to know about slide types, which couples every format to
+every vocabulary.
+
+Two fixes were available. Having vocabularies ship per-format adapters solves adding a
+vocabulary but breaks adding a format, merely moving the coupling. The fix adopted
+introduces a shared set of **layout primitives** between them: a vocabulary translates its
+content into primitives, a delivery format renders primitives, and neither names the
+other. Work to add either kind then scales with one, not with the count of the other.
+Captured as FR-034 through FR-036, SC-013, and a fourth acceptance scenario on User
+Story 2.
+
+**Verification covered one format.** FR-016 said "every deck" but only a presentation-file
+verifier existed, while the command contract printed passing structural gates for web and
+text outputs. Each delivery format now supplies its own verification adapter (FR-037,
+SC-014).
+
+**The visual gate did not inspect anything.** It produced images and reported a verdict on
+them without anyone or anything looking. FR-017 now requires a recorded verdict and
+forbids reporting `passed` for a step that only rasterizes.
+
+**Verification was not bound to what was rendered.** The command contract accepted any
+artifact path while the validation guide claimed no such command existed. Rendering now
+writes to staging and promotes atomically only after passing, with verification bound to
+a build record (FR-038, FR-039, SC-015).
+
+**The publish-safety check had a blind spot in its most important use.** It scanned
+tracked files only, but ran immediately after copying material in — when that material is
+untracked and therefore invisible to it. Scope now includes candidate files, and the check
+runs mechanically at commit time rather than being documented as a step to remember
+(FR-022 amended, FR-040, SC-016).
+
+Also corrected: SC-009 conflated re-theming with vocabulary migration, which R1 had
+already established as not generally possible; intake was specified as guidance prose with
+no invocable interface (FR-041, FR-042, SC-017); and the pack-registry wording was fixed
+here rather than deferred to an implementation task.

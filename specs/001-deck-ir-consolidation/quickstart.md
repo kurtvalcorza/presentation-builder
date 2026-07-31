@@ -4,24 +4,26 @@
 **Purpose**: runnable scenarios proving the feature works end to end. Each maps to a
 user story and its success criteria.
 
+**Platform note**: every scenario runs through `npm run` scripts rather than shell
+built-ins. The earlier draft used `/tmp`, `cp -r`, `diff`, and `mv`, which cannot run in
+PowerShell — while a task required the whole guide to pass on both platforms. Test logic
+that needs a filesystem lives in Node, so the commands below are identical on Windows and
+POSIX.
+
 ---
 
 ## Prerequisites
 
 | Requirement | Needed for | If absent |
 |---|---|---|
-| Node (current LTS) | core, renderers, PDF rasterizing, scrub check | nothing runs |
-| Python 3.9+ with a presentation-file reader | structural gate | gate reports `not_run`, exit 3 |
+| Node (current LTS) | everything | nothing runs |
+| Python 3.9+ with the presentation reader | presentation-file extraction adapter | that format's structural gate reports `not_run`, exit 3 |
 | Headless office converter | visual gate, document format | both report unavailable, exit 3 |
 
 The office converter is the **only** external system dependency. Per-slide image
-extraction for the visual gate is done in Node from the converted PDF, so there is no
-separate image tool to install. If the converter is installed but not on `PATH` — the
-common case on Windows — the capability probe finds it at its well-known location or via
-the override environment variable; it does not report unavailable.
-
-The degradation path is itself a scenario — see Scenario 5. Do not treat a missing
-toolchain as a blocked quickstart; treat it as the case that must report honestly.
+extraction is done in Node from the converted PDF. If the converter is installed but not
+on `PATH` — the common case on Windows — the capability probe finds it at its well-known
+location or via the override environment variable.
 
 ```bash
 npm install
@@ -31,191 +33,231 @@ npm install
 
 ## Scenario 1 — Author once, deliver in several formats
 
-*Proves: User Story 1 · SC-001 · FR-005*
+*Proves: US1 · SC-001 · FR-005*
 
 ```bash
-node bin/deck.mjs build examples/sample-plan.json \
-  --target presentation-file --target web --target spoken-script
+npm run deck -- build examples/sample-plan.json --target presentation-file --target web --target spoken-script
 ```
 
-**Expected**
+**Expected**: three artifacts from one plan; identical unit count; every unit's visible
+text and notes matching across formats; exit 0.
 
-- Three artifacts produced from one plan file.
-- Slide count identical across all three.
-- Every slide's visible text and speaker notes match across formats.
-- Exit 0 when all gates pass.
-
-**The check that matters**: the plan was authored once. Confirm no per-format content
-file exists anywhere in the output.
+**The check that matters**: confirm no per-format content file exists anywhere in output.
 
 ---
 
-## Scenario 2 — Re-render after a content change
+## Scenario 2 — Re-render and theme swap
 
-*Proves: User Story 1 scenario 2 · SC-009*
+*Proves: US1 · FR-005 · SC-009*
 
-Edit one slide's wording in the plan, then:
+Change one slide's wording, rebuild, and confirm every format reflects it with no
+per-format editing. Then change **only** `theme` and confirm each unit's text is
+byte-identical to the previous run — the theme moved, the content did not.
 
 ```bash
-node bin/deck.mjs build examples/sample-plan.json --target presentation-file --target web
+npm run test:rerender
 ```
 
-**Expected**: both formats reflect the change; nothing was edited per format.
-
-Then change only `theme`, rebuild, and confirm every slide's text is byte-identical to
-the previous run — the theme moved, the content did not.
+Note SC-009 covers *theme* changes. Changing **vocabulary** is a migration, not a
+re-theme: it either maps cleanly or reports which content has no equivalent.
 
 ---
 
-## Scenario 3 — Invalid plan is refused before anything renders
+## Scenario 3 — Invalid plan refused before anything renders
 
-*Proves: User Story 1 scenario 4 · FR-002 · FR-003*
+*Proves: US1 · FR-002 · FR-003*
 
 ```bash
-node bin/deck.mjs build examples/invalid-plan.json --target presentation-file
+npm run deck -- build examples/invalid-plan.json --target presentation-file
 ```
 
-**Expected**
-
-- Exit 1.
-- Error names the offending slide `id` and the field path.
-- **Zero output files created.** Check the output directory is empty — refusing after
-  writing a partial artifact would violate FR-002.
+**Expected**: exit 1; error names the offending slide `id` and field path; **zero output
+files**, in staging or anywhere else.
 
 ---
 
 ## Scenario 4 — Gates block a defective deck
 
-*Proves: User Story 1 · SC-005 · FR-016 · FR-018*
-
-Three deliberately defective plans, each isolating one hard-fail code:
+*Proves: US1 · SC-005 · FR-016 · FR-018*
 
 ```bash
-node bin/deck.mjs build examples/defect-notes-missing.json  --target presentation-file
-node bin/deck.mjs build examples/defect-count-mismatch.json --target presentation-file
-node bin/deck.mjs build examples/defect-content-absent.json --target presentation-file
+npm run test:gates
 ```
 
-**Expected**: each exits 1, names the failing slide, and **delivers nothing**.
+Three defect fixtures, each isolating one hard-fail code (notes missing, count mismatch,
+plan content absent). Each must exit 1, name the failing slide, and **deliver nothing**.
 
-Then confirm the recovery path: the backup from before the run exists, and re-running
-after fixing the *plan* succeeds. Confirm that editing the built artifact to make the
-gate pass is not a supported path — there is no command that accepts a hand-edited
-artifact as verified (FR-021, Principle III).
+Then confirm the recovery path: the pre-run backup exists, and re-running after fixing the
+*plan* succeeds. Confirm no command accepts a hand-edited artifact as verified output of a
+plan — `verify <artifact>` without a build record reports provenance as unestablished, and
+`promote` refuses it.
 
 ---
 
 ## Scenario 5 — Honest degradation
 
-*Proves: FR-019 · FR-031 · R6*
+*Proves: FR-019 · FR-031*
 
-With the office converter unavailable (rename it, or run in a container without it):
+With the office converter unavailable:
 
 ```bash
-node bin/deck.mjs build examples/sample-plan.json --target presentation-file --target document
+npm run deck -- build examples/sample-plan.json --target presentation-file --target document
 ```
 
-**Expected**
+**Expected**: presentation file produced and structurally verified; visual gate `not_run`
+with a reason; document format **unavailable**, not "skipped"; **exit 3, not 0**; overall
+`incomplete`, never `passed`.
 
-- Presentation file is produced; structural gate runs.
-- Visual gate reports `not_run` with a reason.
-- Document format reports **unavailable**, not "skipped" and not silently omitted.
-- **Exit 3, not 0.** This is the single most important assertion in the quickstart: a
-  caller treating exit 0 as "verified" must never receive 0 here.
-- The report never uses the word "passed" for the deck overall — `overall` is
-  `incomplete`.
+This is the most important assertion in the guide: a caller treating exit 0 as "verified"
+must never receive 0 here.
 
 ---
 
-## Scenario 6 — Pack isolation
+## Scenario 6 — Pack isolation, both directions
 
-*Proves: User Story 2 · SC-002 · SC-003 · Principle IV*
+*Proves: US2 · SC-002 · SC-003 · SC-013 · Principle IV*
 
 ```bash
-git status --porcelain > /tmp/before.txt
-cp -r examples/throwaway-pack packs/throwaway
-node bin/deck.mjs packs                     # discovers it without any registry edit
-node bin/deck.mjs build examples/sample-plan.json --target throwaway
-git status --porcelain > /tmp/after.txt
-diff /tmp/before.txt /tmp/after.txt
+npm run test:isolation
 ```
 
-**Expected**: every difference is inside `packs/throwaway/` and the output directory.
-A change to any core file means the abstraction leaked — fix the schema, not the pack
-(User Story 2 scenario 3).
+Three checks, run in Node so they work on either platform:
 
-Repeat with a throwaway **vocabulary** pack for SC-003.
+- **A** — add a throwaway *vocabulary*, render to an existing format, assert every changed
+  file is inside the new pack **and no delivery format changed**.
+- **B** — add a throwaway *delivery format*, render an existing vocabulary's plan to it,
+  assert every changed file is inside the new pack **and no vocabulary changed**.
+- **C** — search every vocabulary pack for delivery format ids and every delivery format
+  pack for vocabulary ids or slide type names. Both must return nothing.
+
+Direction B and check C are what the original single-direction test lacked, which is why
+it did not catch a task that edited a sibling pack.
 
 ---
 
-## Scenario 7 — Unrenderable slide type is caught at approval
+## Scenario 7 — Unrenderable content caught at compile
 
 *Proves: FR-011*
 
-Build a plan using a slide type the selected format's `supported_types` excludes.
+Compile a plan whose vocabulary emits a primitive the selected format's
+`supported_primitives` excludes.
 
-**Expected**: reported at validation, **before** rendering — not discovered as a missing
-slide in the output.
+```bash
+npm run deck -- compile examples/sample-plan.json --target text-only
+```
+
+**Expected**: reported at compile, **before** rendering — naming the primitive kind and
+the slide, not discovered as a missing slide in the output. Decorative primitives
+(`motif`, `spacer`) are exempt: a text artifact ignoring an orbit motif is correct, not a
+failure.
 
 ---
 
-## Scenario 8 — Publish safety
+## Scenario 8 — Structural verification covers every format
 
-*Proves: User Story 4 · SC-006 · FR-022 · FR-023 · FR-024*
-
-```bash
-node bin/deck.mjs scrub                      # baseline: exit 0, zero violations
-```
-
-Then the three cases that matter:
+*Proves: FR-016 · FR-037 · SC-014*
 
 ```bash
-# a) a real hit is caught
-echo "<denied term>" >> README.md && node bin/deck.mjs scrub    # exit 1, names file+line
-git checkout README.md
-
-# b) fail-closed when the list is gone
-mv .scrub-denylist.txt .scrub-denylist.bak && node bin/deck.mjs scrub   # exit 4, NOT 0
-mv .scrub-denylist.bak .scrub-denylist.txt
-
-# c) no false positives
-node bin/deck.mjs scrub                      # exit 0 across the whole tracked corpus
+npm run test:adapters
 ```
 
-Case (b) is the one that protects the repository. A scanner that reports clean when its
-denylist is missing is worse than no scanner, because it manufactures false confidence.
+For each delivery format, corrupt one delivered artifact — delete a unit, strip notes,
+remove an attribution — and confirm that format's own extraction adapter causes the
+structural gate to fail.
 
-Case (c) has a known regression target: words like *forecasting*, *lasting*, and
-*contrasting* contain a denied acronym as a substring and MUST NOT be reported. Keep
-them in a fixture so the regression cannot return.
+**Expected**: every format fails on its own corruption. A format with no adapter must be
+unable to report a structural result at all, rather than printing a pass it did not earn.
 
 ---
 
-## Scenario 9 — Capability inventory is complete
+## Scenario 9 — The visual gate produces a verdict
 
-*Proves: User Story 5 · SC-007 · SC-012 · FR-027*
+*Proves: FR-017 · R12*
 
-Check the migration inventory: every capability of the superseded builders and the eight
-router modes is mapped to a replacement or recorded as an accepted drop with a reason.
+```bash
+npm run test:visual
+```
 
-**Expected**: zero unaccounted entries. Per the resolved clarification, the expected
-drop count is zero — all eight router capabilities survive, reclassified.
+Run against fixtures with deliberate visual defects — overflowing text, overlapping
+elements, a contrast violation, a margin breach.
+
+**Expected**: the gate reports `failed` with findings naming the affected slides. A run
+that only produces images and records no verdict must report `not_run`, never `passed`.
+
+---
+
+## Scenario 10 — Staging and promotion boundary
+
+*Proves: FR-038 · FR-039 · SC-015*
+
+```bash
+npm run test:promotion
+```
+
+- A build whose gates fail leaves the delivered location **untouched**; staged output is
+  discarded.
+- A build whose gates pass promotes atomically — no state where some targets are delivered
+  and others half-written.
+- `verify` on an artifact with no build record reports provenance unestablished, and
+  `promote` refuses it.
+
+---
+
+## Scenario 11 — Publish safety
+
+*Proves: US4 · SC-006 · SC-016 · FR-022 · FR-023 · FR-024 · FR-040*
+
+```bash
+npm run test:scrub
+```
+
+Five cases:
+
+1. Baseline — zero violations across the corpus, exit 0.
+2. A denied term in a **tracked** file — exit 1, names file and line.
+3. A denied term in a **newly copied, untracked** file — exit 1. *This is the case the
+   original tracked-only design missed, and it is the exact situation the absorption step
+   creates.*
+4. Denylist missing — **exit 4, not 0**. A scanner reporting clean when its denylist is
+   gone is worse than no scanner.
+5. No false positives — *forecasting*, *lasting*, *contrasting*, and a currency code used
+   as a language name must not match.
+
+Then confirm enforcement rather than documentation: attempt a commit carrying a denied
+term and confirm the hook blocks it without anyone running the check by hand.
+
+---
+
+## Scenario 12 — Capability inventory is complete
+
+*Proves: US5 · SC-007 · SC-012 · FR-027*
+
+The inventory is a **Phase 0** artifact (research R17): it is the requirements input for
+the primitive set, not a closing checklist. Confirm every capability of the two builders,
+the eight router modes, and the two utilities maps to a replacement or an accepted drop
+with a reason.
+
+**Expected**: zero unaccounted entries; expected drop count zero.
 
 ---
 
 ## Coverage map
 
-| Scenario | User Story | Key criteria |
+| Scenario | Story | Key criteria |
 |---|---|---|
 | 1, 2 | US1 | SC-001, SC-009 |
 | 3, 4 | US1 | SC-005 |
 | 5 | US1 | FR-019, FR-031 |
-| 6 | US2 | SC-002, SC-003 |
+| 6 | US2 | SC-002, SC-003, SC-013 |
 | 7 | US1/US2 | FR-011 |
-| 8 | US4 | SC-006 |
-| 9 | US5 | SC-007, SC-012 |
+| 8 | US1 | SC-014 |
+| 9 | US1 | FR-017 |
+| 10 | US1 | SC-015 |
+| 11 | US4 | SC-006, SC-016 |
+| 12 | US5 | SC-007, SC-012 |
 
-**Not covered here**: User Story 3 (intake from long-form source) has no deterministic
-scenario — its output is a proposed plan produced by judgement, and its acceptance is the
-author's review. It is validated by the checkpoint existing and by the proposed plan
-passing `validate`, not by asserting particular slide content.
+**US3 (intake)** has no deterministic scenario — its output is a proposed plan produced by
+judgement, and its acceptance is the author's review. It is validated by three checkable
+properties rather than by asserting slide content: the approval checkpoint exists and
+blocks rendering; the proposed plan passes `validate`; and every proposed slide carries a
+traceable location in the source material (SC-017).

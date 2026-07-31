@@ -9,10 +9,16 @@ description: "Task list for Deck IR Consolidation"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/, quickstart.md
 
-**Tests**: INCLUDED. Research R9 defines a three-layer test strategy and quickstart.md
-defines nine validation scenarios, so tests are part of the design rather than optional.
+**Tests**: INCLUDED. Research R9 defines a four-layer test strategy and quickstart.md
+defines twelve validation scenarios.
 
 **Organization**: Grouped by user story so each remains an independently testable slice.
+
+**Revised 2026-07-31** after an external review found five critical defects. The changes
+here are structural, not cosmetic: a capability-inventory phase now precedes all design
+work, and the vocabulary/format seam is rebuilt around layout primitives. The previous
+list required editing a delivery format in order to add a vocabulary — a direct violation
+of FR-009, in the phase meant to prove additivity.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -22,248 +28,276 @@ defines nine validation scenarios, so tests are part of the design rather than o
 
 ## Terminology
 
-`spec.md` says **delivery format pack**; this file and `contracts/` say **target**. They
-are the same thing — the manifest field is literally `"kind": "target"`. Spec language is
-stakeholder-facing; task and contract language matches the code.
+`spec.md` says **delivery format pack**; this file and `contracts/` say **target**. Same
+thing — the manifest field is `"kind": "target"`. Spec language is stakeholder-facing;
+task and contract language matches the code.
 
 ## Path Conventions
 
-Single project rooted at the repository (plan.md → Structure Decision): `bin/`, `src/`,
-`packs/`, `tools/`, `tests/`, `examples/`, `references/`, with generated output in `out/`.
+Single project rooted at the repository: `bin/`, `src/`, `packs/`, `tools/`, `tests/`,
+`examples/`, `references/`, with staged output in `out/staging/` and delivered output in
+`out/delivered/`.
+
+---
+
+## Phase 0: Capability Inventory (Design Input)
+
+**Purpose**: establish what the superseded components can express **before** designing the
+primitive set that must express it. Research R17: the inventory is the requirements input
+for the primitive layer, not a closing checklist. Designing primitives first and
+inventorying later is how a consolidation silently loses capability.
+
+- [ ] T001 Build the capability inventory in `specs/001-deck-ir-consolidation/migration-inventory.md` — every slide construct, rule, theme axis, and output behaviour of the two builders (`../research-deck-builder/SLIDE_BLUEPRINTS.md`, `keynote-deck-builder/SLIDE_TYPES.md`), the eight router modes, and the two post-processing utilities (FR-027, SC-012)
+- [ ] T002 Derive the closed primitive set from T001 and record it in `specs/001-deck-ir-consolidation/contracts/render-ir.md` — every construct in the inventory MUST map to a primitive or be listed as an accepted drop with a reason. Apply the design test: a primitive a renderer cannot draw without knowing which vocabulary produced it is not a primitive
+- [ ] T003 [P] Map each inventory entry to its replacement (vocabulary type, primitive kind, delivery format, or advisory utility) in `migration-inventory.md`, leaving zero unaccounted entries
+- [ ] T004 Confirm the rule vocabulary covers every declared rule found in T001, extending the rule-kind list in `contracts/pack-contract.md` where it does not — a rule kind that only one vocabulary can use is a smell (FR-010)
+
+**Checkpoint**: the primitive set and rule vocabulary are grounded in what actually has to
+be expressed, not guessed.
 
 ---
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-**Purpose**: Project skeleton and toolchain. No feature behaviour yet.
-
-- [ ] T001 Create the directory skeleton (`bin/`, `src/plan/`, `src/packs/`, `src/gates/`, `src/scrub/`, `packs/`, `tools/`, `tests/`, `examples/`, `references/`) per plan.md Structure Decision
-- [ ] T002 Initialize the Node project in `package.json` with a JSON Schema 2020-12 validator, the presentation-file generation library, and a **Node PDF rasterizer** (used by the visual gate in T028 so no image-extraction system binary is required); pin versions and set `"type": "module"`
-- [ ] T003 [P] Add `tools/requirements.txt` pinning the Python presentation-file reader used by the verifier
-- [ ] T004 [P] Configure linting and formatting in `eslint.config.mjs` and `.editorconfig`
-- [ ] T005 [P] Add the test runner configuration in `package.json` with separate `contract`, `golden`, `gates`, `isolation`, and `scrub` suites per research R9
-- [ ] T006 Extend `.gitignore` with build-output patterns for the generated `out/` directory, keeping the existing scrub-denylist and workspace-artifact rules intact (FR-025)
+- [ ] T005 Create the directory skeleton (`bin/`, `src/plan/`, `src/render-ir/`, `src/packs/`, `src/gates/`, `src/delivery/`, `src/scrub/`, `packs/`, `tools/`, `tests/`, `examples/`, `references/`) per plan.md Structure Decision
+- [ ] T006 Initialize the Node project in `package.json` with the dependencies selected in research R16 — Ajv on its **2020-12 entry point** (the default export is an older draft), PptxGenJS, the pdf.js distribution, and the **prebuilt** N-API canvas backend (a source build would require a compiler on Windows); pin versions, set `"type": "module"`
+- [ ] T007 [P] Add `tools/requirements.txt` pinning the Python presentation reader used by the presentation-file extraction adapter
+- [ ] T008 [P] Configure linting and formatting in `eslint.config.mjs` and `.editorconfig`
+- [ ] T009 [P] Add npm scripts in `package.json` for every quickstart scenario (`test:rerender`, `test:gates`, `test:isolation`, `test:adapters`, `test:visual`, `test:promotion`, `test:scrub`) so validation runs identically on Windows and POSIX (quickstart Platform note, FR-P1)
+- [ ] T010 Extend `.gitignore` for `out/staging/` and `out/delivered/`, keeping the scrub-denylist and workspace-artifact rules intact (FR-025)
+- [ ] T011 Record licences for every selected dependency in `THIRD-PARTY-NOTICES.md` **in this same change**, not later (Principle VII, research R16)
 
 ---
 
 ## Phase 2: Foundational (Blocking Prerequisites)
 
-**Purpose**: The shared plan format and pack machinery. **Every user story depends on
-this phase.** Nothing below can start until it completes.
+**Purpose**: both seams and the delivery boundary. Every user story depends on this phase.
 
-- [ ] T007 Implement the core envelope schema as JSON Schema 2020-12 in `src/plan/envelope.schema.json`, exactly as specified in `contracts/deck-plan.schema.md` including `additionalProperties: false` throughout
-- [ ] T008 Implement schema composition in `src/plan/compose.mjs` — dispatch each slide's `content` to the schema the declared vocabulary supplies for that slide's `type` (research R1)
-- [ ] T009 Implement the eight non-schema constraints C1–C8 in `src/plan/constraints.mjs` per `contracts/deck-plan.schema.md`
-- [ ] T010 Implement the unified error report shape in `src/plan/errors.mjs` so every failure carries `slide_id`, `slide_index`, `path`, `code`, and `message` (FR-003)
-- [ ] T011 Implement pack discovery by directory scan in `src/packs/discover.mjs` — scan `packs/`, load each `pack.json`, assert `id` equals the directory name. **No registry file** (research R2)
-- [ ] T012 Implement manifest validation for both pack kinds in `src/packs/manifest.mjs` per `contracts/pack-contract.md`
-- [ ] T013 Implement the external-toolchain capability probe in `src/packs/capabilities.mjs`, returning per-toolchain availability for honest degradation (research R6). **Do not probe PATH alone** — check well-known install locations too, and honour an explicit override environment variable. Measured on the development machine: the office converter is installed at `C:\Program Files\LibreOffice\program\soffice.exe` but is **not on PATH**, so a PATH-only probe reports it unavailable and silently disables both the visual gate and the document target on the very machine used to test them
-- [ ] T014 Implement the three-state gate result model (`passed` / `failed` / `not_run`) and `overall` rollup in `src/gates/report.mjs`, where any `not_run` yields `incomplete` and never `passed` (FR-019)
-- [ ] T015 Implement phase-named, non-overwriting backups in `src/gates/backup.mjs` (FR-021, research R8)
-- [ ] T016 Implement the command surface skeleton in `bin/deck.mjs` with subcommands `packs`, `validate`, `render`, `verify`, `build`, `scrub` and the exit-code contract 0/1/2/3/4 per `contracts/cli-and-verifier.md`
-- [ ] T017 [P] Write contract tests in `tests/contract/envelope.test.mjs` asserting valid plans pass and each of C1–C8 fails with the correct `code`, `slide_id`, and `path`
-- [ ] T018 [P] Add `examples/sample-plan.json` and `examples/invalid-plan.json` as the shared fixtures used by later phases
+### Seam 1 — the plan
 
-**Checkpoint**: `deck validate examples/sample-plan.json` succeeds and
-`examples/invalid-plan.json` fails naming slide and field, with zero packs installed.
+- [ ] T012 Implement the core envelope schema in `src/plan/envelope.schema.json` per `contracts/deck-plan.schema.md`, with `additionalProperties: false` throughout
+- [ ] T013 Implement schema composition in `src/plan/compose.mjs` — dispatch each slide's `content` to the schema the declared vocabulary supplies for that type (R1)
+- [ ] T014 Implement constraints C1–C8 in `src/plan/constraints.mjs` per `contracts/deck-plan.schema.md`
+- [ ] T015 Implement the unified error report in `src/plan/errors.mjs` carrying `slide_id`, `slide_index`, `path`, `code`, `message` (FR-003)
+
+### Seam 2 — the Render IR
+
+- [ ] T016 Implement the closed primitive set and Render IR schema in `src/render-ir/primitives.schema.json` from `contracts/render-ir.md` (FR-034, FR-036)
+- [ ] T017 Implement compilation orchestration in `src/render-ir/compile.mjs` — invoke the declared vocabulary's compiler, resolve theme tokens to values, validate the result against the primitive schema, and carry slide `id` through onto each unit (FR-006)
+- [ ] T018 Implement the FR-011 support check in `src/render-ir/support.mjs` — compare produced primitive kinds against the target's `supported_primitives`, exempting the decorative kinds (`motif`, `spacer`), and report before any rendering
+
+### Packs
+
+- [ ] T019 Implement pack discovery by directory scan in `src/packs/discover.mjs` — scan `packs/`, load each `pack.json`, assert `id` equals the directory name. **No registry file** (R2)
+- [ ] T020 Implement manifest validation for both pack kinds in `src/packs/manifest.mjs` per `contracts/pack-contract.md`, **rejecting a target manifest that declares `supported_types`** — the coupled field name must fail loudly rather than work
+- [ ] T021 Implement the toolchain capability probe in `src/packs/capabilities.mjs`. **Do not probe PATH alone** — check well-known install locations and an override environment variable. Measured: the office converter is installed at `C:\Program Files\LibreOffice\program\soffice.exe` but is not on PATH, so a PATH-only probe disables the visual gate and document target on the machine used to test them
+
+### Gates and delivery boundary
+
+- [ ] T022 Implement the three-state gate result model in `src/gates/report.mjs` — any `not_run` yields `incomplete`, never `passed` (FR-019); distinguish `not_run` (nobody looked) from `N/A` (no such surface)
+- [ ] T023 Implement the generic rule-kind evaluator in `src/gates/rules.mjs` supporting the kinds confirmed in T004, with **no branching on pack id** (FR-010)
+- [ ] T024 Implement the shared structural verifier in `src/gates/structural.mjs` — take each target's extraction and compare against the plan, hard-failing on notes missing, count mismatch, plan content absent, and render artifacts (FR-016). Comparison lives here; extraction never does
+- [ ] T025 Implement staging in `src/delivery/staging.mjs` — renderers write only under `out/staging/<build-id>/` (FR-038)
+- [ ] T026 Implement build records in `src/delivery/record.mjs` — plan digest, vocabulary, theme, per-target artifact digests and toolchain versions (FR-039)
+- [ ] T027 Implement atomic promotion in `src/delivery/promote.mjs` — refuse unless the record's verification is `passed`; promote all-or-nothing so no state exists with some targets delivered and others half-written (FR-038, SC-015)
+- [ ] T028 Implement phase-named, non-overwriting backups in `src/delivery/backup.mjs` (FR-021, R8)
+
+### Command surface and fixtures
+
+- [ ] T029 Implement `bin/deck.mjs` with subcommands `packs`, `validate`, `compile`, `render`, `verify`, `promote`, `build`, `scrub` and exit codes 0/1/2/3/4 per `contracts/cli-and-verifier.md`
+- [ ] T030 Implement the two distinct verify claims in `bin/deck.mjs` — with a build record, "verified output of plan X"; without one, "checks passed, provenance unestablished". `promote` accepts only the first (FR-039)
+- [ ] T031 [P] Contract tests in `tests/contract/envelope.test.mjs` — valid plans pass; each of C1–C8 fails with the correct `code`, `slide_id`, `path`
+- [ ] T032 [P] Contract tests in `tests/contract/primitives.test.mjs` — a compiler emitting an unknown primitive kind is rejected at the seam, not silently rendered
+- [ ] T033 [P] Add `examples/sample-plan.json` and `examples/invalid-plan.json`
+
+**Checkpoint**: a plan validates, compiles to primitives, and the delivery boundary exists
+— with zero packs installed.
 
 ---
 
 ## Phase 3: User Story 1 — Author once, deliver in any format (Priority: P1) 🎯 MVP
 
-**Goal**: One plan drives several delivery formats, and defective decks cannot ship.
+**Goal**: one plan drives several delivery formats through the primitive layer, and
+defective decks cannot reach the delivered location.
 
-**Independent test**: Author one plan, select two formats, confirm both are produced with
-matching content, slide count, and notes, with nothing authored twice
-(quickstart Scenario 1).
+**Independent test**: quickstart Scenario 1 — one plan, two formats, matching content and
+notes, nothing authored twice.
 
-### Vocabulary and rules
+### Vocabulary (compiles to primitives)
 
-- [ ] T019 [US1] Port the sparse keynote vocabulary to `packs/keynote/` — `pack.json`, per-type content schemas under `packs/keynote/types/`, and the three themes — from the existing `keynote-deck-builder/SLIDE_TYPES.md` and `references/outline_template.json`
-- [ ] T020 [US1] Express the keynote vocabulary's verification rules as declared data in `packs/keynote/rules.json` using only generic rule kinds (FR-010)
-- [ ] T021 [US1] Implement the generic rule-kind evaluator in `src/gates/rules.mjs` supporting `notes_word_count`, `attribution_required`, `no_adjacent_same_type`, and `required_boundary_types`, with **no branching on pack id** (FR-010)
+- [ ] T034 [US1] Port the sparse keynote vocabulary to `packs/keynote/` — `pack.json`, per-type content schemas under `types/`, theme token files under `themes/` — from `keynote-deck-builder/SLIDE_TYPES.md` and its outline template
+- [ ] T035 [US1] Implement `packs/keynote/compile.mjs` translating each slide type into primitives per `contracts/render-ir.md`. **It MUST NOT contain any delivery format id** — this is where the old design put format knowledge, and SC-013 is checked by searching for exactly that
+- [ ] T036 [US1] Express the keynote vocabulary's rules as declared data in `packs/keynote/rules.json` using only the confirmed rule kinds (FR-010)
 
-### Renderers
+### Delivery formats (render primitives)
 
-- [ ] T022 [US1] Port the keynote presentation-file renderer to `packs/presentation-file/render.mjs`, adapting `keynote-deck-builder/scripts/build_keynote.js` to the `render({plan, vocabulary, theme, outDir, capabilities})` contract; it MUST NOT mutate the plan or read source material
-- [ ] T023 [P] [US1] Copy the existing HTML style presets into `packs/web/runtime/` **verbatim and frozen** — this is SHIPPED code under Constitution Principle II, never regenerated at build time; fonts from the public font service are the only permitted external dependency
-- [ ] T024 [US1] Implement the web renderer in `packs/web/render.mjs`, emitting a self-contained page that references the frozen runtime from T023
-- [ ] T025 [P] [US1] Implement the document target as `packs/document/pack.json` declaring `derives_from: presentation-file` and `requires: [office-converter]` — **no renderer**, it converts the upstream artifact (FR-031, research R4)
-- [ ] T026 [US1] Implement `derives_from` resolution in `src/packs/derive.mjs` so a deriving target receives the upstream target's artifacts and never reads the plan
+- [ ] T037 [US1] Implement the presentation-file renderer in `packs/presentation-file/render.mjs` — one handler per **primitive kind**, taking the Render IR and never the plan. Adapt the drawing helpers from `keynote-deck-builder/scripts/build_keynote.js`, but leave its per-slide-type layout logic behind: that logic belongs to the vocabulary now (R11)
+- [ ] T038 [P] [US1] Copy the existing HTML style presets into `packs/web/runtime/` **verbatim and frozen** — SHIPPED code under Principle II, never regenerated at build time. Update `THIRD-PARTY-NOTICES.md` in the **same change**, not a later phase (Principle VII)
+- [ ] T039 [US1] Implement the web renderer in `packs/web/render.mjs` — one handler per primitive kind, referencing the frozen runtime from T038
+- [ ] T040 [P] [US1] Implement the document target as `packs/document/pack.json` declaring `derives_from: presentation-file` and `requires: [office-converter]` — **no renderer** (FR-031, R4)
+- [ ] T041 [US1] Implement `derives_from` resolution in `src/packs/derive.mjs` — a deriving target receives the upstream target's **staged** artifacts and reads neither plan nor Render IR
 
-### Verification and delivery
+### Verification adapters
 
-- [ ] T027 [US1] Merge the two existing Python verifiers into `tools/verify_deck.py`, porting the hard-fail checks (`notes_missing`, `slide_count_mismatch`, `plan_content_absent`, `render_artifact`) and emitting JSON on stdout per `contracts/cli-and-verifier.md`; it takes resolved rules as input and has **no knowledge of packs**
-- [ ] T028 [US1] Implement the visual gate in `src/gates/visual.mjs` as a two-hop chain — office converter for presentation-file → PDF, then the **Node PDF rasterizer from T002** for PDF → per-slide images — writing into a fresh directory each run and reporting `not_run` with a reason when the office converter is absent. **Do not shell out to an image-extraction binary**: the office converter alone cannot do this (converting a presentation straight to an image format exports only the first slide), and doing the second hop in Node removes the last system binary from the contract, leaving the office converter as the single external dependency
-- [ ] T029 [US1] Implement gate orchestration in `src/gates/run.mjs` wiring T027 and T028 into the three-state report, refusing delivery unless `overall` is `passed` (FR-018)
-- [ ] T030 [US1] Implement `build` in `bin/deck.mjs` as validate → render → verify, with per-target reporting and partial-success handling that exits non-zero (FR-020)
-- [ ] T031 [US1] Implement FR-011 in `src/plan/constraints.mjs` — report at validation time any slide type a selected target's `supported_types` excludes, **before** rendering
+- [ ] T042 [US1] Implement `tools/verify_deck.py` as the presentation-file **extraction adapter** — emit units, content, notes, attributions, and count as JSON on stdout per `contracts/cli-and-verifier.md`. Port the reading logic from the two superseded verifiers, but **drop their judgement logic**: comparison now lives in the shared verifier (R13)
+- [ ] T043 [P] [US1] Implement `packs/web/extract.mjs` — extraction adapter for the web format
+- [ ] T044 [P] [US1] Implement `packs/document/extract.mjs` — extraction adapter for the document format
+- [ ] T045 [US1] Wire adapter dispatch in `src/gates/structural.mjs` so structural verification runs for **every** target with an adapter, and a target without one cannot report a structural result at all (FR-037, SC-014)
+
+### Visual gate
+
+- [ ] T046 [US1] Implement rasterizing in `src/gates/visual-render.mjs` — office converter for presentation-file → PDF, then the Node PDF rasterizer → per-slide images, into a fresh directory each run
+- [ ] T047 [US1] Implement the visual **inspection** in `src/gates/visual.mjs` — automated checks for the mechanically detectable defects the superseded builders enumerated (text overflow, clipping, element overlap, contrast below threshold, margin breach), producing a recorded verdict naming what was inspected and what was found. **Rasterizing alone reports `not_run`, never `passed`** (FR-017, R12)
+- [ ] T048 [US1] Implement the human-review path in `src/gates/visual.mjs` — record an explicit verdict against the rendered images, so a human pass is auditable and distinguishable from nobody looking (R12)
+
+### Build pipeline
+
+- [ ] T049 [US1] Implement `build` in `bin/deck.mjs` as validate → compile → render(staging) → verify → promote, with per-target reporting and partial-success handling that exits non-zero (FR-020)
 
 ### Tests
 
-- [ ] T032 [P] [US1] Golden-file tests in `tests/golden/` asserting byte-stable output per renderer for `examples/sample-plan.json`
-- [ ] T033 [P] [US1] Add the three defect fixtures `examples/defect-notes-missing.json`, `examples/defect-count-mismatch.json`, `examples/defect-content-absent.json`
-- [ ] T034 [US1] Gate tests in `tests/gates/blocked.test.mjs` asserting each defect fixture exits 1, names the failing slide, and produces **no delivered artifact** (SC-005, quickstart Scenario 4)
-- [ ] T035 [US1] Degradation test in `tests/gates/degradation.test.mjs` asserting that with the office toolchain absent the run exits **3, not 0**, the document target reports unavailable, and `overall` is `incomplete` (FR-019, quickstart Scenario 5)
-- [ ] T036 [US1] Test in `tests/contract/refusal.test.mjs` asserting an invalid plan creates **zero output files** (quickstart Scenario 3)
-- [ ] T037 [US1] **Note-binding test** in `tests/contract/note-binding.test.mjs` — reorder, insert, and delete slides in a plan, then assert every slide's `notes` and `attribution` still belong to the slide they started on, keyed by `id`. This is the only test covering FR-006, and FR-006 is what justifies stable ids over ordinals in data-model.md; a regression here still renders and still passes every other gate, so nothing else would catch it
-- [ ] T038 [P] [US1] Re-render invariance test in `tests/golden/rerender.test.mjs` — change one slide's wording and assert every target reflects it with no per-format edit; then change only `theme` and assert each slide's text is byte-identical to the prior run (FR-005, SC-009, quickstart Scenario 2)
+- [ ] T050 [P] [US1] Golden tests in `tests/golden/` comparing a **normalized extraction** — units, text, notes, attributions, ordering, theme tokens — not raw bytes. A presentation file is a ZIP carrying timestamps and entry ordering, so byte comparison fails on unchanged re-runs and the test gets deleted (R9 correction)
+- [ ] T051 [P] [US1] Add defect fixtures `examples/defect-notes-missing.json`, `examples/defect-count-mismatch.json`, `examples/defect-content-absent.json`
+- [ ] T052 [US1] Gate tests in `tests/gates/blocked.test.mjs` — each fixture exits 1, names the failing slide, delivers nothing (SC-005, quickstart 4)
+- [ ] T053 [US1] Degradation test in `tests/gates/degradation.test.mjs` — office converter absent ⇒ exit **3 not 0**, document unavailable, overall `incomplete` (FR-019, quickstart 5)
+- [ ] T054 [US1] Refusal test in `tests/contract/refusal.test.mjs` — an invalid plan creates zero output files anywhere, staging included (quickstart 3)
+- [ ] T055 [US1] **Note-binding test** in `tests/contract/note-binding.test.mjs` — reorder, insert, and delete slides, then assert notes and attributions still belong to the slide they started on, keyed by `id`. Only test covering FR-006, which is what justifies stable ids over ordinals; a regression still renders and passes every other gate
+- [ ] T056 [P] [US1] Re-render invariance test in `tests/golden/rerender.test.mjs` — a wording change reaches every target with no per-format edit; a theme-only change leaves unit text identical (FR-005, SC-009, quickstart 2)
+- [ ] T057 [US1] Adapter tests in `tests/adapters/` — corrupt each delivered artifact per format and confirm that format's own adapter causes the structural gate to fail (SC-014, quickstart 8)
+- [ ] T058 [US1] Visual gate tests in `tests/gates/visual.test.mjs` against fixtures with deliberate overflow, overlap, contrast, and margin defects (FR-017, quickstart 9)
+- [ ] T059 [US1] Promotion tests in `tests/delivery/promotion.test.mjs` — failed gates leave the delivered location untouched; passing gates promote atomically; an artifact with no build record reports provenance unestablished and cannot be promoted (SC-015, quickstart 10)
 
-**Checkpoint**: MVP complete. One plan renders to presentation file, web, document, and
-gates block every defective deck.
+**Checkpoint**: MVP. One plan → primitives → several formats, every format structurally
+verified by its own adapter, visual defects actually caught, nothing delivered ungated.
 
 ---
 
 ## Phase 4: User Story 2 — Extend without touching the core (Priority: P2)
 
-**Goal**: Adding a vocabulary or a delivery format touches zero files outside its own
-directory.
+**Goal**: adding a vocabulary or a delivery format touches zero files outside its own
+directory, **in both directions**.
 
-**Independent test**: Add throwaway packs and assert via file-level diff that nothing
-outside their directories changed (quickstart Scenario 6).
+- [ ] T060 [US2] Add the dense attribution-carrying research vocabulary to `packs/research/` — `pack.json`, content schemas, theme tokens, `rules.json` — from `../research-deck-builder/SLIDE_BLUEPRINTS.md`
+- [ ] T061 [US2] Implement `packs/research/compile.mjs` translating the research archetypes into primitives. **This is the real additivity test**: if it cannot be done without editing a delivery format, the primitive set is short a kind — add the kind to `src/render-ir/` (FR-036), never a special case to a renderer. The previous task list failed exactly here
+- [ ] T062 [US2] Implement attribution rendering for the styles the research vocabulary declares, as an `attribution-line` primitive emitted by its compiler (FR-014)
+- [ ] T063 [P] [US2] Add throwaway fixture packs `examples/throwaway-vocabulary/` and `examples/throwaway-target/` with minimal valid manifests, compiler, renderer, and adapter
+- [ ] T064 [US2] **Isolation test, direction A** in `tests/isolation/add-vocabulary.test.mjs` — add the throwaway vocabulary, render to an existing format, assert every changed file is inside the new pack and **no delivery format changed**
+- [ ] T065 [US2] **Isolation test, direction B** in `tests/isolation/add-target.test.mjs` — add the throwaway target, render an existing vocabulary's plan to it, assert every changed file is inside the new pack and **no vocabulary changed**
+- [ ] T066 [US2] **Reference search test** in `tests/isolation/no-cross-reference.test.mjs` — no vocabulary pack contains a delivery format id; no delivery format pack contains a vocabulary id or slide type name (SC-013). Catches coupling written in from the start, which a diff cannot see
 
-- [ ] T039 [US2] Add the dense attribution-carrying research vocabulary to `packs/research/` — `pack.json`, per-type content schemas, themes, `rules.json` — ported from `../research-deck-builder/SLIDE_BLUEPRINTS.md`. **Treat this as the first real test of additivity**: if it cannot be added without editing the core, fix the schema, not the pack (User Story 2 scenario 3)
-- [ ] T040 [US2] Extend the presentation-file renderer in `packs/presentation-file/` to cover the research vocabulary's slide types, adapting `../research-deck-builder/scripts/build_deck_template.js`
-- [ ] T041 [US2] Add attribution rendering to `packs/research/` supporting the attribution styles the vocabulary declares (FR-014)
-- [ ] T042 [P] [US2] Add throwaway fixture packs `examples/throwaway-vocabulary/` and `examples/throwaway-target/` with minimal valid manifests
-- [ ] T043 [US2] **Pack isolation test** in `tests/isolation/pack-isolation.test.mjs` — record repository file state, add each throwaway pack, run discovery/validate/render, assert every changed file is inside the new pack's directory. This is the mechanical proof of Constitution Principle IV (SC-002, SC-003)
-- [ ] T044 [US2] Reconcile the registry wording in `spec.md` in **all three places** — SC-002, SC-003, **and User Story 2 acceptance scenario 1** (`spec.md:55`). Scan-based discovery (research R2) means no registry file exists, so drop every "and the pack registry" clause and tighten each to "zero files outside the pack directory". Missing the acceptance scenario would leave it contradicting the architecture
-
-**Checkpoint**: Two real vocabularies and several targets coexist; additivity is proven
-by test rather than asserted.
+**Checkpoint**: two real vocabularies and six formats coexist; additivity proven by test in
+both directions.
 
 ---
 
 ## Phase 5: User Story 3 — From a long source to a reviewed plan (Priority: P3)
 
-**Goal**: Long-form material becomes a proposed plan the author reviews before rendering.
-
-**Independent test**: Supply one long-form source, confirm a reviewable plan is produced
-and passes `validate`, correct it, and confirm corrections reach delivery without
-re-running intake.
-
-- [ ] T045 [US3] Write the intake phase guidance in `references/intake.md` with a "When to read this" trigger (Principle V), absorbing `source-to-presentation-synthesis/SKILL.md` and the router's speaker-script guidance
-- [ ] T046 [US3] Implement attribution-list extraction and consistency checking in `src/plan/attributions.mjs`, surfacing prose-versus-list mismatches to the author rather than resolving them (FR-015)
-- [ ] T047 [US3] Implement the approval checkpoint in `bin/deck.mjs` — present the slide-by-slide plan and require explicit approval before any render (FR-013)
-- [ ] T048 [P] [US3] Add the non-slide targets `packs/spoken-script/`, `packs/rundown/`, and `packs/storyboard/`, all rendering from the same plan; `rundown` consumes `duration_sec` (research R5, FR-032)
-- [ ] T049 [US3] Verify the envelope carries enough for all three non-slide targets; if any needs a field beyond `duration_sec`, add it to the **envelope** in `src/plan/envelope.schema.json` rather than adding a per-format escape hatch (research R5)
-
-**Checkpoint**: A long source becomes an approved plan that renders to slide and
-non-slide formats alike.
+- [ ] T067 [US3] Implement intake as an invocable phase in `src/intake/propose.mjs` with declared supported input types, a defined output location, and an explicit approval state — not guidance prose alone (FR-041)
+- [ ] T068 [US3] Implement source traceability in `src/intake/trace.mjs` — every proposed slide records the location in the source it derives from (FR-042, SC-017)
+- [ ] T069 [US3] Implement attribution extraction and consistency checking in `src/intake/attributions.mjs`, surfacing prose-versus-list mismatches rather than resolving them (FR-015)
+- [ ] T070 [US3] Implement the approval checkpoint in `bin/deck.mjs` — present the slide-by-slide plan and require explicit approval before any compile or render (FR-013)
+- [ ] T071 [P] [US3] Write intake guidance in `references/intake.md` with a "When to read this" trigger (Principle V), absorbing `source-to-presentation-synthesis/SKILL.md` and the router's speaker-script guidance
+- [ ] T072 [P] [US3] Add the non-slide targets `packs/spoken-script/`, `packs/rundown/`, `packs/storyboard/` — renderers over the same primitives plus unit notes, each with its own extraction adapter; `rundown` consumes `duration_sec` (FR-032, R5)
+- [ ] T073 [US3] Traceability test in `tests/intake/trace.test.mjs` — every slide in a proposed plan resolves to a source location (SC-017)
 
 ---
 
 ## Phase 6: User Story 4 — Nothing unpublishable can be published (Priority: P4)
 
-**Goal**: A fail-closed publish-safety check with no false positives.
+- [ ] T074 [US4] Implement the scanner in `src/scrub/scan.mjs` — parse the `[cs-word]` / `[ci-word]` / `[regex]` denylist sections; scan **tracked files and candidate files** (staged, or newly present and not ignored). A tracked-only scan is blind exactly when material has just been copied in (FR-022, R15)
+- [ ] T075 [US4] Implement fail-closed behaviour in `src/scrub/scan.mjs` — missing or unreadable denylist exits **4**, never 0 (FR-023)
+- [ ] T076 [P] [US4] Add the false-positive regression fixture in `tests/scrub/fixtures/` — *forecasting*, *lasting*, *contrasting*, and a currency code used as a language name, none of which may match (FR-024)
+- [ ] T077 [US4] Install the commit-time hook in `tools/hooks/pre-commit` and wire its installation into project setup, so a denied term blocks the commit without anyone remembering to run the check (FR-040)
+- [ ] T078 [US4] Report hook installation status in `deck packs`, so a repository missing its enforcement is visible rather than silently unprotected
+- [ ] T079 [US4] Scrub tests in `tests/scrub/scan.test.mjs` — tracked hit exits 1; **untracked newly copied hit exits 1**; missing denylist exits 4; regression fixture yields zero findings; `git ls-files` never contains the denylist path (SC-006, SC-016, FR-026)
+- [ ] T080 [US4] Document the check in `references/publishing.md`, noting that the hook is the control and the documentation is not
 
-**Independent test**: A known-bad string fails the check; a missing denylist also fails
-rather than reporting success (quickstart Scenario 8).
-
-- [ ] T050 [US4] Port the validated PowerShell prototype to a single cross-platform Node implementation in `src/scrub/scan.mjs`, parsing the `[cs-word]` / `[ci-word]` / `[regex]` sections of the denylist and scanning **tracked files only** (FR-022, FR-024, research R7)
-- [ ] T051 [US4] Implement fail-closed behaviour in `src/scrub/scan.mjs` — a missing or unreadable denylist exits **4**, never 0 (FR-023)
-- [ ] T052 [P] [US4] Add the false-positive regression fixture in `tests/scrub/fixtures/` containing *forecasting*, *lasting*, and *contrasting*, plus a currency code used as a programming-language name — all of which MUST NOT match (FR-024)
-- [ ] T053 [US4] Scrub tests in `tests/scrub/scan.test.mjs` covering: a real hit exits 1 naming file and line; a missing denylist exits 4; the regression fixture yields zero findings; and **`git ls-files` never contains the denylist path**, so FR-026 cannot silently regress if the ignore rule is edited (SC-006, FR-026)
-- [ ] T054 [US4] Wire `scrub` into `bin/deck.mjs` and document it in `references/publishing.md` as the required pre-commit check
-
-**Checkpoint**: The publish-safety guarantee is executable rather than a habit.
+**Checkpoint**: publish safety is enforced, covers newly copied material, and is auditable.
 
 ---
 
 ## Phase 7: User Story 5 — Retire the duplicates cleanly (Priority: P5)
 
-**Goal**: One documented way to build a deck, with no capability silently dropped.
+**Depends on**: US4 — absorbing external material without the scrub check in place would
+violate Principle VI at the moment of highest risk.
 
-**Independent test**: Every superseded capability maps to a replacement or an accepted
-drop with a reason; expected drop count is zero (quickstart Scenario 9).
-
-**Depends on**: US4 — the scrub check must exist before absorbing external material.
-
-- [ ] T055 [US5] Build the capability inventory in `specs/001-deck-ir-consolidation/migration-inventory.md`, enumerating every capability of the two builders, the eight router modes, and the two post-processing utilities, each mapped to its replacement or recorded as an accepted drop (FR-027, SC-012)
-- [ ] T056 [US5] Absorb **tracked files only** from `../research-deck-builder` into this repository; run `deck scrub` immediately after the copy and **before** staging, and do not commit unless it exits 0 (FR-030, research R10)
-- [ ] T057 [P] [US5] Absorb `convert-pptx-to-handout/` and `summarize-slide-images-to-note/` as post-processing utilities under `tools/`, preserving their behaviour
-- [ ] T058 [P] [US5] Absorb the two advisory router modes (version comparison, structure selection) into `references/advisory.md` as utilities alongside the pipeline rather than pipeline stages (FR-032)
-- [ ] T059 [US5] Update `THIRD-PARTY-NOTICES.md` to cover every absorbed third-party artifact, including the frozen web runtime from T023, **before** the commit that absorbs it (FR-029, Principle VII)
-- [ ] T060 [US5] Rewrite `SKILL.md` as a lean router with "When to read this" triggers on every reference file (Principle V, FR-028)
-- [ ] T061 [US5] Rewrite `README.md` to describe the consolidated pipeline, removing the five-skill table and the superseded "sibling repository" arrangement (FR-028, SC-010)
-- [ ] T062 [US5] Add a deprecation notice to the standalone `../research-deck-builder` README directing readers here, within the first screen (FR-033, SC-011)
-- [ ] T063 [US5] **Last step, gated on T055 being complete with zero unaccounted entries**: delete the superseded directories `presentation-studio/`, `keynote-deck-builder/`, `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`, `summarize-slide-images-to-note/`
-
-**Checkpoint**: The duplication is gone, not merely supplemented.
+- [ ] T081 [US5] Absorb **tracked files only** from `../research-deck-builder`; run `deck scrub` after the copy and **before** staging — now meaningful, since the scan covers untracked candidate files (FR-030, R10, R15)
+- [ ] T082 [P] [US5] Absorb `convert-pptx-to-handout/` and `summarize-slide-images-to-note/` as post-processing utilities under `tools/`, preserving behaviour
+- [ ] T083 [P] [US5] Absorb the two advisory router modes into `references/advisory.md` as utilities alongside the pipeline (FR-032)
+- [ ] T084 [US5] Verify `THIRD-PARTY-NOTICES.md` covers every absorbed artifact, having been updated in each absorbing change rather than retrospectively (FR-029, Principle VII)
+- [ ] T085 [US5] Rewrite `SKILL.md` as a lean router with "When to read this" triggers on every reference file (Principle V, FR-028)
+- [ ] T086 [US5] Rewrite `README.md` for the consolidated pipeline, removing the five-skill table and the superseded sibling-repository arrangement (FR-028, SC-010)
+- [ ] T087 [US5] Add a deprecation notice to `../research-deck-builder/README.md` directing readers here within the first screen (FR-033, SC-011)
+- [ ] T088 [US5] Re-confirm `migration-inventory.md` from T001 shows zero unaccounted entries now that everything is built (SC-007, SC-012)
+- [ ] T089 [US5] **Last step, gated on T088**: delete the superseded directories `presentation-studio/`, `keynote-deck-builder/`, `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`, `summarize-slide-images-to-note/`
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T064 [P] Add `references/` "When to read this" headers to every reference file and verify none is loaded upfront (Principle V)
-- [ ] T065 [P] Write `examples/README.md` explaining each fixture and which quickstart scenario it serves
-- [ ] T066 Run the full quickstart end to end on Windows and on POSIX, confirming identical exit codes on both (plan.md Target Platform)
-- [ ] T067 Verify every one of the 33 functional requirements is exercised by at least one test or quickstart scenario; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
-- [ ] T068 Run `deck scrub` over the final tree and confirm zero violations before the feature branch is proposed for merge (Principle VI)
+- [ ] T090 [P] Add "When to read this" headers to every file in `references/` and verify none is loaded upfront (Principle V)
+- [ ] T091 [P] Write `examples/README.md` explaining each fixture and the quickstart scenario it serves
+- [ ] T092 Run every quickstart scenario on Windows and on POSIX via the npm scripts from T009, confirming identical exit codes
+- [ ] T093 Verify all 42 functional requirements are exercised by a test or quickstart scenario; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
+- [ ] T094 Run `deck scrub` over the final tree and confirm zero violations before proposing the branch for merge (Principle VI)
 
 ---
 
 ## Dependencies
 
 ```
+Phase 0 Capability Inventory  ←── design input; primitives derive from it
+     ↓
 Phase 1 Setup
      ↓
-Phase 2 Foundational  ←── blocks everything
+Phase 2 Foundational (both seams + delivery boundary)  ←── blocks everything
      ↓
-   ┌─┴──────────────┬──────────────┬─────────────┐
-   ↓                ↓              ↓             ↓
-US1 (P1) MVP    US3 (P3)       US4 (P4)     (US2 needs US1)
+   ┌─┴───────────────┬──────────────┐
+   ↓                 ↓              ↓
+US1 (P1) MVP     US3 (P3)      US4 (P4)
    ↓                                ↓
 US2 (P2)                            ↓
-   └──────────────┬─────────────────┘
-                  ↓
-              US5 (P5)  ←── needs US4 (scrub) and the T055 inventory
-                  ↓
-             Phase 8 Polish
+   └───────────────┬────────────────┘
+                   ↓
+               US5 (P5)  ←── needs US4's scrub; T089 gated on T088
+                   ↓
+              Phase 8 Polish
 ```
 
-**Story dependency notes**:
-
-- **US2 depends on US1** — it proves additivity by adding a *second* vocabulary, which
-  requires a first one to exist.
-- **US5 depends on US4** — absorbing external material without the scrub check in place
-  would violate Principle VI at exactly the moment of highest risk.
-- **US3 is independent of US1/US2** after Phase 2 and can proceed in parallel.
-- **T063 is gated on T055**, not merely ordered after it. Deleting a superseded directory
-  before its capabilities are inventoried is how capability loss becomes silent.
+- **Phase 0 precedes design**, not delivery. Deriving the primitive set from a guess and
+  inventorying afterwards is how capability loss becomes silent (R17).
+- **US2 depends on US1** — additivity is proven by adding a *second* vocabulary.
+- **US5 depends on US4** — and now genuinely benefits from it, since the scan finally sees
+  the untracked files the absorption creates.
+- **T089 is gated on T088**, not merely ordered after it.
 
 ## Parallel Execution Examples
 
-**Phase 2**: T017 and T018 run together once T007–T016 land.
+**Phase 0**: T003 runs alongside T002 once T001 lands.
 
-**Phase 3 (US1)**: T023 (freeze web runtime) and T025 (document target manifest) are
-independent of the renderer work in T022/T024. T032 and T033 run together, as do T037 and
-T038 once T030 lands.
+**Phase 2**: T031–T033 run together once T012–T030 land.
 
-**Phase 4 (US2)**: T042 (throwaway fixtures) is independent of T039–T041.
+**Phase 3**: T038 (freeze runtime) and T040 (document manifest) are independent of the
+renderer work. T043/T044 (adapters) run together. T050/T051 and T056 run together.
 
-**Phase 5 (US3)**: T048 (three non-slide targets) is independent of T045–T047.
+**Phase 4**: T063 is independent of T060–T062.
 
-**Phase 6 (US4)**: T052 (regression fixture) is independent of T050–T051.
+**Phase 5**: T071 and T072 are independent of T067–T070.
 
-**Phase 7 (US5)**: T057 and T058 are independent absorptions. T059 must precede the
-commit for whichever absorption lands first.
+**Phase 7**: T082 and T083 are independent absorptions.
 
 ## Implementation Strategy
 
-**MVP = Phase 1 + Phase 2 + Phase 3 (US1).** That delivers the feature's core claim —
-one plan, several formats, gates that actually block — with one vocabulary. It is
-independently valuable and independently shippable.
+**MVP = Phase 0 + 1 + 2 + US1.** Delivers the core claim — one plan, several formats via
+primitives, gates that actually inspect and actually block — with one vocabulary.
 
-**Then US2**, because it is the load-bearing architectural claim. If adding the second
-vocabulary requires touching the core, that must surface early, while only one renderer
-exists to fix. Deferring US2 would let a leaky abstraction harden.
+**Then US2**, because it is the load-bearing architectural claim and the one that already
+failed once. If the research vocabulary cannot be added without touching a delivery
+format, that must surface while only one renderer exists to fix.
 
-**Then US4 before US5**, because US5 copies external material into a public repository
-and US4 is the check that makes that safe.
+**Then US4 before US5**, because US5 copies external material into a public repository and
+US4 is what makes that safe.
 
-**US3 can run in parallel** with any of the above once Phase 2 completes.
+**US3 can run in parallel** once Phase 2 completes.
 
-**Do not start Phase 7 deletions until T055 shows zero unaccounted capabilities.** The
-whole risk of a consolidation is silent capability loss, and the inventory is the only
-thing standing against it.
+**Do not start Phase 7 deletions until T088 shows zero unaccounted capabilities.**

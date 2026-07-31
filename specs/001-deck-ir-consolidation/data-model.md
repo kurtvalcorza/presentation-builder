@@ -8,7 +8,25 @@ describes its shape and the shape of the packs that give it meaning.
 
 ---
 
-## The composition rule
+## Two seams, not one
+
+There are two places where ownership changes hands, and the original model only had the
+first. Missing the second is what let delivery formats couple to vocabularies.
+
+```
+Deck Plan ──validate──▶ ok ──compile──▶ Render IR ──render──▶ artifact ──extract──▶ canonical
+   │                          │        (primitives)    │                    │
+   └─ seam 1: content schema ─┘                        └─ seam 2: primitives┘
+      owned by vocabulary                                 owned by pipeline
+```
+
+**Seam 1 — validation.** The plan's `content` shape is owned by the vocabulary.
+**Seam 2 — rendering.** The vocabulary compiles content into pipeline-owned primitives;
+delivery formats render primitives and never see slide types.
+
+Everything below describes both.
+
+## The composition rule (seam 1)
 
 One schema cannot describe both a dense attribution-carrying research slide and a
 one-word keynote beat without degenerating into "any object". So the schema is composed
@@ -85,6 +103,49 @@ One unit of the plan. The envelope is universal; `content` is not.
 
 ---
 
+### LayoutPrimitive
+
+A presentation-neutral unit of layout, owned by the pipeline. The shared currency between
+vocabularies and delivery formats (R11).
+
+| Field | Required | Description |
+|---|---|---|
+| `kind` | yes | Primitive kind, from the pipeline's closed set. |
+| `role` | no | Semantic hint — heading, body, caption, attribution — for formats that style by role. |
+| `payload` | yes | Kind-shaped content, validated by the pipeline's schema for that kind. |
+
+**Rules**
+
+- The primitive set is **closed and pipeline-owned**. A vocabulary needing a kind that does
+  not exist is a gap in the set, closed there (FR-036) — never worked around by a format
+  special-casing a vocabulary.
+- A primitive MUST be renderable by a format that knows nothing about why it exists. The
+  test: if a proposed primitive can only be explained by naming a vocabulary, it is not a
+  primitive — it is vocabulary content wearing a disguise.
+- Primitives carry no vocabulary identifiers and no format identifiers (SC-013).
+
+---
+
+### RenderIR
+
+The compiled form of a plan: what delivery formats actually consume.
+
+| Field | Required | Description |
+|---|---|---|
+| `deck` | yes | Deck-level metadata carried through from the plan. |
+| `theme_tokens` | yes | Resolved visual tokens — the vocabulary's theme, flattened to values. |
+| `units` | yes | Ordered; one per slide. Each carries the slide's `id`, its primitives, its notes, its attributions, and its duration. |
+
+**Rules**
+
+- Produced by the vocabulary's compiler; consumed by delivery formats.
+- Carries the slide `id` through unchanged, so notes and attributions stay bound to their
+  slide across the whole pipeline (FR-006).
+- A format MUST NOT read the deck plan. The Render IR is its only input, which is what
+  makes SC-013 mechanically checkable by search.
+
+---
+
 ### VocabularyPack
 
 A named slide idiom — the dense attribution-carrying research catalog, the sparse
@@ -95,7 +156,8 @@ keynote catalog, or any future one.
 | `id` | yes | Unique pack identifier. |
 | `kind` | yes | `vocabulary`. |
 | `slide_types` | yes | Map of type name to the content schema for that type. |
-| `themes` | yes | Named visual variants the pack offers. At least one. |
+| `compiler` | yes | Entry point translating slide content into layout primitives. |
+| `themes` | yes | Named visual variants, each resolving to theme tokens. At least one. |
 | `default_theme` | yes | Which theme applies when the plan does not choose. |
 | `attribution_styles` | no | Attribution renderings this vocabulary supports. |
 | `rules` | no | Vocabulary-specific verification rules, declared for the shared verifier. |
@@ -105,6 +167,7 @@ keynote catalog, or any future one.
 - `rules` are **declared, not coded**. The shared verifier enforces them generically and
   MUST NOT branch on pack id (FR-010). A rule the verifier cannot express generically is
   a gap in the rule vocabulary, to be fixed there.
+- The `compiler` MUST NOT reference any delivery format identifier (FR-034, SC-013).
 - A pack is self-contained: everything above lives inside its own directory (R2).
 
 ---
@@ -118,16 +181,69 @@ A named output. Covers both slide outputs and the non-slide views of the same pl
 | `id` | yes | Unique pack identifier. |
 | `kind` | yes | `target`. |
 | `produces` | yes | What it emits — a presentation file, a web page, a document, or a text artifact. |
-| `supported_types` | yes | Slide types it can render, or a wildcard. Drives FR-011. |
+| `supported_primitives` | yes | Primitive kinds it can render, or a wildcard. Drives FR-011. |
+| `verification_adapter` | yes | Entry point extracting canonical content from its artifact type (FR-037). |
 | `requires` | no | External toolchains it needs. Absence triggers honest degradation (R6). |
 | `derives_from` | no | Another format id this one converts. Used by the document format (R4). |
 
 **Rules**
 
-- A format declaring `derives_from` MUST NOT read the plan directly; it converts the
-  named format's output. This keeps the document format from becoming a third renderer.
+- `supported_primitives` lists **primitive kinds, not slide types**. A format that named
+  slide types would be coupled to the vocabularies defining them, which is the defect R11
+  exists to remove (FR-034, SC-013).
+- A format declaring `derives_from` MUST NOT read the plan or the Render IR directly; it
+  converts the named format's output. This keeps the document format from becoming a third
+  renderer.
 - A format whose `requires` are unmet is reported unavailable, never silently skipped
   (FR-031).
+- Every format supplies a `verification_adapter`, so structural verification covers 100% of
+  delivered artifacts rather than one privileged format (SC-014).
+
+---
+
+### VerificationAdapter
+
+Supplied by each delivery format. Turns that format's artifact back into something the
+shared verifier can compare against the plan (R13).
+
+| Field | Required | Description |
+|---|---|---|
+| `units` | yes | Ordered extraction, one per slide/section, each identified by slide `id` where the format preserves it. |
+| `unit_content` | yes | Visible text extracted per unit. |
+| `unit_notes` | yes | Speaker notes per unit, where the format carries them. |
+| `unit_attributions` | no | Attributions extracted per unit. |
+| `count` | yes | Number of units found in the artifact. |
+
+**Rules**
+
+- Extraction is format-specific; **comparison is not**. The adapter only extracts; the
+  shared verifier decides pass or fail. This is what keeps verification logic out of the
+  packs and pack knowledge out of the verifier.
+- A format that cannot preserve a field reports it absent rather than inventing it — a
+  text artifact with no notes channel says so, and the verifier judges that against the
+  format's declared capability rather than failing blindly.
+
+---
+
+### BuildRecord
+
+Binds a verification result to what was actually rendered (R14, FR-039).
+
+| Field | Required | Description |
+|---|---|---|
+| `plan_digest` | yes | Digest of the plan the build consumed. |
+| `vocabulary` / `theme` | yes | What the plan was compiled with. |
+| `artifacts` | yes | Per target: staged path, digest, and the toolchain versions used. |
+| `verification` | no | The VerificationReport, once gates have run. |
+
+**Rules**
+
+- Verification is performed against a BuildRecord, not a bare path. An artifact with no
+  matching record can be verified on request, but the result MUST state that provenance
+  could not be established — "these checks passed" is a weaker claim than "this is the
+  verified output of this plan", and the two MUST NOT be reported identically.
+- Promotion from staging to the delivered location consumes the record and requires
+  `verification.overall == passed` (FR-038).
 
 ---
 
@@ -194,24 +310,31 @@ Long-form input to intake. Read-only.
 ## Relationships
 
 ```
-DeckPlan ──1:N──▶ Slide
+SourceMaterial ──intake──▶ DeckPlan (proposed, pending approval)
+                              │
+DeckPlan ──1:N──▶ Slide ──────┘
    │                 │
    │ declares        │ type ∈ pack.slide_types
    ▼                 ▼
-VocabularyPack ──supplies──▶ content schema (per type)
+VocabularyPack ──supplies──▶ content schema (seam 1)
+   │        │
+   │        └──compiler──▶ RenderIR ──1:N──▶ LayoutPrimitive   (seam 2)
+   │ rules                    │
+   ▼                          │ consumed by
+Verifier                      ▼
+   ▲  ▲              DeliveryFormatPack ──renders──▶ staged artifact
+   │  │                   │        │                      │
+   │  │  derives_from ────┘        │ verification_adapter │
+   │  │                            ▼                      │
+   │  └──────────── canonical extraction ◀────────────────┘
    │
-   │ rules
-   ▼
-Verifier ──produces──▶ VerificationReport
-   ▲
-   │ verifies
-DeliveryFormatPack ──renders──▶ built artifact
-   │
-   └── derives_from ──▶ DeliveryFormatPack
+   └──produces──▶ VerificationReport ──▶ BuildRecord ──promote (if passed)──▶ delivered
 
-SourceMaterial ──intake──▶ DeckPlan (proposed, pending approval)
-DeniedTermList ──gates──▶ commit
+DeniedTermList ──blocks──▶ commit
 ```
+
+Note what is *absent*: there is no edge from `DeliveryFormatPack` to `VocabularyPack` or
+to `DeckPlan`. That absence is the guarantee (SC-013), and it is checkable by search.
 
 ---
 
@@ -220,22 +343,29 @@ DeniedTermList ──gates──▶ commit
 A plan moves through states; delivery is reachable only one way.
 
 ```
-     proposed ──author approves──▶ approved ──render──▶ built
-        │                              ▲                  │
-        │ author edits                 │                  │ verify
-        └──────────────────────────────┘                  ▼
-                                                   ┌─────────────┐
-                        ┌──────────────────────────│  verified?  │
-                        │                          └─────────────┘
-                   failed / incomplete                    │ passed
-                        │                                 ▼
-                        ▼                             delivered
-                 restore backup,
-                 fix the PLAN,
-                 re-render
+   proposed ──approves──▶ approved ──compile──▶ compiled ──render──▶ STAGED
+      │                       ▲                                        │
+      │ author edits          │                                        │ verify
+      └───────────────────────┘                                        ▼
+                              │                                 ┌─────────────┐
+                              │            ┌────────────────────│  verified?  │
+                              │            │                    └─────────────┘
+                              │      failed / incomplete               │ passed
+                              │            │                           ▼
+                              │            ▼                    promote (atomic)
+                              └──── fix the PLAN,                      │
+                                    discard staging                    ▼
+                                                                  DELIVERED
 ```
 
-The loop from a failed gate returns to the **plan**, never to the built artifact. There
-is deliberately no edge from `built` to `delivered` that bypasses verification (FR-018),
-and no edge that repairs a built artifact in place — that is the inversion of truth
-Principle III forbids.
+Three properties this encodes:
+
+- **Nothing reaches `DELIVERED` except by atomic promotion from `STAGED` after `passed`**
+  (FR-038). A failed or incomplete build leaves the delivered location untouched, so a
+  crash mid-run cannot deliver ungated output.
+- **The failure loop returns to the plan**, never to the artifact. There is deliberately no
+  edge that repairs a staged artifact in place — that is the inversion of truth Principle
+  III forbids, and staging makes it structurally awkward rather than merely discouraged.
+- **`compiled` is a distinct state.** FR-011 is answered there: unrenderable content is
+  detected by comparing produced primitives against the target's `supported_primitives`,
+  before anything is rendered.

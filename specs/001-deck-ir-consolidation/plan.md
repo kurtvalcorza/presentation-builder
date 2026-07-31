@@ -11,25 +11,33 @@ Replace three overlapping deck-building paths with one plan-driven pipeline.
 A single **deck plan** (JSON) becomes the only authored artifact. A small core envelope
 schema owns what is universal — slide ordering, identity, notes, attribution, timing —
 while each **vocabulary pack** contributes the content schema for its own slide types.
-**Delivery format packs** render that plan to a presentation file, a web page, a
-document, and three non-slide views (spoken script, producer rundown, storyboard). Packs
-are discovered by directory scan, so adding one touches zero files outside its own
-directory.
+
+Vocabularies then **compile** their content into a pipeline-owned set of **layout
+primitives**, and **delivery format packs** render primitives. Neither kind of pack
+references the other, so adding either scales with one rather than with the count of the
+other. Six delivery formats ship: a presentation file, a web page, a document, and three
+non-slide views (spoken script, producer rundown, storyboard). Packs are discovered by
+directory scan, so adding one touches zero files outside its own directory.
 
 One shared verifier replaces the two existing ones, enforcing rule *kinds* declared as
-data by each vocabulary rather than branching on vocabulary identity. Two gates —
-structural and visual — stand between a built artifact and delivery, with a three-state
-result so "could not check" is never reported as "verified".
+data by each vocabulary rather than branching on vocabulary identity, and comparing
+against canonical content that each format extracts from its own artifact type. Two gates
+— structural and visual — stand between a rendered artifact and delivery, with a
+three-state result so "could not check" is never reported as "verified". Rendering writes
+to staging; artifacts reach their delivered location only by atomic promotion after the
+gates pass.
 
 ## Technical Context
 
 **Language/Version**: Node (current LTS) for core, renderers, and the scrub check;
 Python 3.9+ for the presentation-file verifier only
 
-**Primary Dependencies**: a Node presentation-file generation library; a JSON Schema
-2020-12 validator; a Node PDF rasterizer; a Python presentation-file reader; and a
-headless office converter — the **single external system dependency**, shared by the
-visual gate and the document format
+**Primary Dependencies** (selected and licence-checked in research R16): Ajv on its
+2020-12 entry point (MIT) for schema validation; PptxGenJS (MIT) for presentation
+generation; the pdf.js distribution (Apache-2.0) with a prebuilt N-API canvas backend
+(MIT) for rasterizing; python-pptx (MIT) for the verifier; and LibreOffice headless
+(MPL-2.0) — the **single external system dependency**, invoked as a subprocess and never
+vendored, shared by the visual gate and the document format
 
 **Storage**: files on disk. The deck plan is the durable artifact; built outputs are
 regenerable and deliberately untracked
@@ -53,8 +61,9 @@ output may load fonts from a public font service; external toolchains may be abs
 must degrade honestly (exit 3, never exit 0); the denied-term list must never be
 published
 
-**Scale/Scope**: 2 vocabulary packs at delivery (extensible), 7 delivery format packs,
-33 functional requirements, 5 user stories; absorbs 2 standalone builders, 8 router
+**Scale/Scope**: 2 vocabulary packs at delivery (extensible), **6** delivery format packs
+(presentation-file, web, document, spoken-script, rundown, storyboard), 42 functional
+requirements, 17 success criteria, 5 user stories; absorbs 2 standalone builders, 8 router
 modes, 1 intake component, and 2 post-processing utilities
 
 ## Constitution Check
@@ -87,10 +96,36 @@ modes, 1 intake component, and 2 post-processing utilities
 | VI | Scrub absolute | **PASS, strengthened** — the mode-aware denylist was validated against the live corpus during specification and eliminated four measured false positives. |
 | VII | Provenance | **PASS** — unchanged. |
 
-**Result: PASS.** One design decision (R2, scan-based discovery) makes two success
-criteria *stricter* than written. SC-002 and SC-003 still say "the pack directory and
-the pack registry"; the design supports dropping the registry clause. Flagged for
-`/speckit-analyze` to reconcile.
+**Result at the time: PASS. That result was wrong**, and the way it was wrong is worth
+recording.
+
+### Post-review re-check (2026-07-31)
+
+An external review found that two principles the table above marked PASS were in fact
+violated by the design it was assessing.
+
+| # | Principle | Recorded | Actual | Now |
+|---|---|---|---|---|
+| I | IR only | PASS | PASS | **PASS** |
+| II | Determinism split | PASS | PASS | **PASS** |
+| III | Two gates | PASS | **FAIL** — the visual gate only rasterized and inspected nothing; structural verification covered one of six formats while the contract printed passing results for all | **PASS** — recorded verdicts (R12), per-format extraction adapters (R13) |
+| IV | Additive packs | PASS | **FAIL** — adding a vocabulary required editing a delivery format (T040), directly violating FR-009 | **PASS** — shared primitive layer (R11), isolation tested in both directions |
+| V | Progressive disclosure | PASS | PASS | **PASS** |
+| VI | Scrub absolute | PASS | **FAIL** — scanned tracked files only, but ran immediately after copying untracked material in; and was documented rather than enforced | **PASS** — candidate-file scope and commit-time hook (R15) |
+| VII | Provenance | PASS | AT RISK — the web runtime was copied in one phase and its attribution updated five phases later | **PASS** — attribution moved to the same change as the absorption |
+
+**Why the original check passed a design that failed.** It was performed against the
+principles as *stated intentions*, not against the task list as *written work*. Principle
+IV was assessed by reading the pack contract, which was sound; the violation lived in a
+task that edited a sibling pack. A constitution check that reads only the design documents
+cannot see a design document contradicted by its own plan.
+
+The correction is procedural as much as architectural: the check now asks, for each
+principle, *which artifact would violate this if someone implemented the plan literally* —
+and the isolation tests (both directions, plus the reference search) exist so the answer is
+enforced by CI rather than by review attention.
+
+**Result: PASS**, with the guarantees now mechanically checkable rather than asserted.
 
 ## Project Structure
 
@@ -105,8 +140,10 @@ specs/001-deck-ir-consolidation/
 ├── quickstart.md        # Phase 1 output — 9 validation scenarios
 ├── contracts/           # Phase 1 output
 │   ├── deck-plan.schema.md
+│   ├── render-ir.md     # the closed primitive set (second seam)
 │   ├── pack-contract.md
 │   └── cli-and-verifier.md
+├── migration-inventory.md   # Phase 0 input (moved from Phase 7 per research R17)
 ├── checklists/
 │   └── requirements.md
 └── tasks.md             # Phase 2 output (/speckit-tasks — NOT created here)
@@ -120,8 +157,10 @@ bin/
 
 src/
 ├── plan/                        # envelope schema, composition, validation, error reporting
+├── render-ir/                   # the closed primitive set + Render IR schema (pipeline-owned)
 ├── packs/                       # discovery by scan, manifest loading, capability probing
 ├── gates/                       # gate orchestration, three-state reporting, backups
+├── delivery/                    # staging, build records, atomic promotion
 └── scrub/                       # fail-closed mode-aware denylist scanner
 
 packs/
@@ -183,5 +222,13 @@ the first step of the build.
 
 > Fill ONLY if Constitution Check has violations that must be justified
 
-No violations. Both Constitution Checks pass, and two design decisions tighten the
-guarantees rather than relaxing them. This table is intentionally empty.
+No unjustified violations. One piece of added complexity is deliberate and is recorded
+here because it deserves scrutiny rather than a silent pass:
+
+| Addition | Why needed | Simpler alternative rejected because |
+|---|---|---|
+| A second intermediate representation (Render IR / layout primitives) between the plan and the renderers | Without it, delivery formats switch on slide types and every format is coupled to every vocabulary — the N×M coupling that made the original task list violate FR-009 | Having vocabularies ship one adapter per delivery format repairs adding a vocabulary but breaks adding a format, which is the direction this project exists to fix. It moves the coupling rather than removing it (research R11). |
+
+The cost is real and is stated in R11: both existing renderers are restructured rather
+than ported, since their per-slide-type layout logic moves into the vocabularies that own
+it. That is the price of the guarantee, paid once.
