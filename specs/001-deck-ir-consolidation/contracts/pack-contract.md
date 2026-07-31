@@ -114,6 +114,13 @@ does not block).
   "kind": "target",
   "produces": "document",
   "supported_primitives": "*",
+  "carries": {
+    "unit_identity": true,
+    "content": true,
+    "notes": true,
+    "attributions": true,
+    "surfaces": ["visual"]
+  },
   "verification_adapter": "extract.mjs",
   "derives_from": "presentation-file",
   "requires": ["office-converter"]
@@ -126,7 +133,34 @@ does not block).
 | `kind` | yes | `target`. |
 | `produces` | yes | `presentation-file` \| `web` \| `document` \| `text`. |
 | `supported_primitives` | yes | Array of **primitive kinds**, or `"*"`. Drives FR-011. |
+| `carries` | yes | Field and surface capabilities. See below. |
 | `verification_adapter` | yes | Extraction entry point (FR-037). |
+
+### `carries` — declared field capability
+
+| Key | Meaning |
+|---|---|
+| `unit_identity` | Artifact preserves slide `id`. When false the verifier compares positionally and says so. |
+| `content` | Artifact carries visible unit text. Always true in practice; declared for completeness. |
+| `notes` | Artifact has a speaker-notes channel. |
+| `attributions` | Artifact can render attributions distinguishably from body content. |
+| `surfaces` | Which gate surfaces exist — `visual`, or empty for text-only artifacts. |
+
+**Why this must be declared rather than inferred.** The verifier has to distinguish a
+format that *has no notes channel* from a format that *lost the notes*. The first is
+correct behaviour; the second is exactly the defect FR-016 exists to catch. Without a
+declaration those two are indistinguishable, and the verifier must either fail every
+text-only format or excuse every dropped note.
+
+**Interaction with FR-016.** The `notes_missing` hard failure applies only where
+`carries.notes` is true. This is not a weakening of FR-016 — a format that declares
+`notes: true` and drops them still hard-fails. It scopes the check to formats where the
+requirement is meaningful.
+
+**Not self-certification.** A gate reports `not_applicable` only where `carries.surfaces`
+lacks that surface, and an adapter's `absent_fields` must agree with `carries`. A format
+cannot dodge a check by claiming at runtime that it never carried the field — disagreement
+between the two is a packaging defect and is reported as one.
 | `requires` | no | External toolchain ids. Unmet → reported unavailable (FR-031, R6). |
 | `derives_from` | no | Another format id. Mutually exclusive with implementing `render`. |
 | `entry` | conditional | Renderer entry point. Required unless `derives_from` is set. |

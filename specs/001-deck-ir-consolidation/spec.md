@@ -149,7 +149,7 @@ Someone arriving at this project finds one documented way to build a deck. The s
 
 **Verification and delivery**
 
-- **FR-016**: The system MUST run a structural verification of **every delivered artifact, in every delivery format**, before delivery — failing on: a slide or section missing speaker notes, a count that disagrees with the plan, plan content absent from the delivered artifact, and rendering artifacts that indicate a broken build. Verification MUST NOT be limited to one format.
+- **FR-016**: The system MUST run a structural verification of **every delivered artifact, in every delivery format**, before delivery — failing on: a unit missing speaker notes *where the format declares it carries notes*, a count that disagrees with the plan, plan content absent from the delivered artifact, and rendering artifacts that indicate a broken build. Verification MUST NOT be limited to one format. A format that declares it carries a field and then loses it MUST still fail; the declaration scopes the check, it does not excuse the loss.
 - **FR-017**: The system MUST run a visual review over every slide before delivery, and that review MUST produce a recorded verdict identifying what was inspected and what was found. Producing images is preparation for the review, not the review itself; a gate that only rasterizes MUST NOT report `passed`.
 - **FR-018**: The system MUST refuse to deliver a deck whose verification has not passed.
 - **FR-019**: When a verification environment is unavailable, the system MUST state which checks did not run and MUST NOT report the deck as fully verified.
@@ -179,11 +179,12 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **FR-034**: Vocabularies and delivery formats MUST NOT know about each other. A vocabulary MUST translate its slide content into a shared set of layout primitives; a delivery format MUST render those primitives. Neither may reference the other's identifiers.
 - **FR-035**: The work of adding a vocabulary MUST be proportional to one vocabulary, and the work of adding a delivery format proportional to one format — never to the number of the other kind already present.
 - **FR-036**: The shared primitive set MUST be owned by the pipeline. A vocabulary needing a primitive that does not exist is a gap in the primitive set, closed there, and never worked around by a delivery format special-casing a vocabulary.
-- **FR-037**: Each delivery format MUST supply a verification adapter that extracts, from its own artifact type, the canonical content needed by structural verification: per-unit content, notes, attributions, and count.
+- **FR-037**: Each delivery format MUST supply a verification adapter that extracts, from its own artifact type, the canonical content needed by structural verification: per-unit content, notes, attributions, and count. The adapter MUST extract only — it MUST NOT judge, and MUST NOT receive the plan, since an extractor that knows the expected answer makes verification vacuous.
+- **FR-043**: Each delivery format MUST declare which canonical fields and which gate surfaces its artifact type can carry, so verification can distinguish a field a format never had from a field it lost, and so a gate can report inapplicability without that being self-certification.
 
 **Delivery boundary**
 
-- **FR-038**: Rendering MUST write only into a staging location. Artifacts MUST be promoted to their delivered location only after verification passes, and promotion MUST be atomic.
+- **FR-038**: Rendering MUST write only into a staging location. Artifacts MUST be promoted to their delivered location only after that target's verification passes. **Promotion is atomic per target**: either all of a target's artifacts are delivered or none are. A target whose verification did not pass MUST NOT be promoted, and MUST NOT prevent the promotion of unrelated targets that did pass — while the run as a whole still reports incomplete so no caller mistakes partial delivery for full delivery.
 - **FR-039**: Verification MUST be bound to what was actually rendered, via a build record identifying the plan and the artifacts it produced. The system MUST NOT report an artifact as verified when it cannot establish that the artifact is the one its plan produced.
 
 **Publish safety enforcement**
@@ -200,7 +201,7 @@ Someone arriving at this project finds one documented way to build a deck. The s
 - **Deck Plan**: The single authored artifact. An ordered set of slides, each carrying a slide type, its on-slide content, attributions where applicable, and the speaker's notes. Authoritative for every delivery format.
 - **Slide**: One unit of the plan. Has a type drawn from a vocabulary, content shaped by that type, optional attribution, and speaker notes.
 - **Vocabulary Pack**: A named set of slide types with the rules and visual conventions that define an idiom — for example a dense, attribution-carrying research idiom versus a sparse, one-idea-per-slide keynote idiom.
-- **Delivery Format Pack**: A named output target that turns a plan into a finished artifact, declaring which slide types it can render.
+- **Delivery Format Pack**: A named output target that turns compiled layout primitives into a finished artifact. It declares which **primitives** it can render — never which slide types, since it has no knowledge of vocabularies — which canonical fields and surfaces its artifact type can carry, and how to extract its own content back for verification.
 - **Theme**: The bounded set of visual choices — palette, typography, motifs — applied to a plan at render time without altering content.
 - **Verification Report**: The outcome of the gates: what passed, what failed, what did not run, and why.
 - **Denied-Term List**: The unpublished list of work-identifying strings that must never appear in tracked files, with the matching mode for each.

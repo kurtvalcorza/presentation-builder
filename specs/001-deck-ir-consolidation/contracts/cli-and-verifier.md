@@ -67,66 +67,85 @@ Every `structural PASS` above is backed by that format's own verification adapte
 draft of this contract printed passing structural gates for formats that had no verifier,
 which is the defect FR-016 and SC-014 now close.
 
-`visual N/A` is distinct from `visual not_run`: a plain-text artifact has no visual
-surface, so there is nothing to inspect; a missing toolchain means there *is* something to
-inspect and nobody looked. Only the latter forces `incomplete`.
+### Atomicity is per target, not per build
+
+Three targets promote here even though the build as a whole is `incomplete`, because
+**each target's promotion is gated on its own verification, and is atomic within that
+target**. The unavailable document converter blocks the document format and nothing else.
+
+This is a deliberate choice over whole-build atomicity. Both are defensible, and an earlier
+draft of this package specified one in the contract and the other in the data model — a
+contradiction rather than a decision. Per-target wins because the alternative punishes
+unrelated outputs for one absent toolchain: a missing office converter would block
+delivering the web deck, which serves nobody.
+
+What "atomic" therefore guarantees: for any single target, either its artifacts are all
+delivered or none are. There is no state where a target is half-promoted. The build-level
+exit code still reports `incomplete`, so a caller treating exit 0 as "everything delivered"
+is never misled.
 
 ---
 
-## Verifier boundary
+## Extraction adapter boundary
 
-The presentation-file verifier stays Python and is invoked as a subprocess (R3). The
+The presentation-file adapter stays Python and is invoked as a subprocess (R3). The
 boundary is JSON on stdout; anything on stderr is diagnostic only.
+
+**It extracts. It does not judge.** Comparison against the plan and enforcement of
+declared rules both live in the shared verifier, so verification logic exists once and
+pack knowledge never enters it (R13). An adapter that returned a pass/fail verdict would
+put judgement in six places and make FR-010 unenforceable.
 
 **Invocation**
 
 ```
-verify_deck.py --artifact <path> --plan <plan.json> --rules <resolved-rules.json>
+tools/verify_deck.py --artifact <path>
 ```
 
-The caller resolves the vocabulary's declared rules and passes them in. The verifier
-therefore has **no knowledge of packs** — it enforces rule kinds, not vocabularies
-(FR-010).
+No plan. No rules. No vocabulary. An adapter that received the plan could "extract" what
+it already knows should be there, which would make structural verification vacuous.
 
 **Response**
 
 ```jsonc
 {
-  "deck": "out/deck.pptx",
-  "overall": "failed",
-  "gates": [
+  "artifact": "out/staging/b17/deck.pptx",
+  "count": 12,
+  "units": [
     {
-      "name": "structural",
-      "status": "failed",
-      "findings": [
-        { "slide_id": "closing", "code": "notes_missing",
-          "severity": "error", "message": "slide has no speaker notes" },
-        { "slide_id": "figure-3", "code": "plan_content_absent",
-          "severity": "error",
-          "message": "plan text 'baseline throughput' not found on rendered slide" }
-      ]
-    },
-    {
-      "name": "visual",
-      "status": "not_run",
-      "reason": "image toolchain not available"
+      "id": "opening-claim",
+      "content": ["Structure beats cleverness", "A one-line framing"],
+      "notes": "What the speaker says here.",
+      "attributions": ["(Author, 2024)"]
     }
-  ]
+  ],
+  "absent_fields": []
 }
 ```
 
-**Status semantics**
+- `id` is echoed where the format preserves it; `null` where it cannot, in which case the
+  verifier falls back to positional comparison and says so.
+- `absent_fields` lists canonical fields this artifact type cannot carry at all. It MUST
+  agree with the pack's declared `carries` (see `pack-contract.md`) — a disagreement is a
+  packaging defect, reported as such rather than silently trusted.
 
-- `passed` — ran, found nothing at `error` severity.
-- `failed` — ran, found at least one `error`.
-- `not_run` — could not execute. Carries `reason`.
+**Gate statuses**, assigned by the shared verifier, never by an adapter:
 
-`overall` is `passed` only if every gate is `passed`; any `not_run` yields `incomplete`.
-There is no combination that yields `passed` while a gate did not run.
+| Status | Meaning | Effect on `overall` |
+|---|---|---|
+| `passed` | Ran, found nothing at `error` severity | — |
+| `failed` | Ran, found at least one `error` | `failed` |
+| `not_run` | Could not execute; carries `reason` | `incomplete` |
+| `not_applicable` | No such surface exists for this format | **none** |
+
+`not_applicable` is a distinct state, not a flavour of `not_run`. A plain-text artifact
+has no visual surface, so there is nothing to inspect and nobody failed to inspect it; a
+missing toolchain means there *is* something to inspect and nobody looked. Conflating them
+would either block text targets forever or excuse an unrun visual gate.
 
 **Hard-fail codes** (FR-016): `notes_missing`, `slide_count_mismatch`,
-`plan_content_absent`, `render_artifact` (icon-font remnants and similar tells of a
-broken build).
+`plan_content_absent`, `render_artifact`. `notes_missing` applies only where the format
+declares it carries notes — see `carries` in `pack-contract.md`.
 
 ---
 

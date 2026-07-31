@@ -14,11 +14,18 @@ defines twelve validation scenarios.
 
 **Organization**: Grouped by user story so each remains an independently testable slice.
 
-**Revised 2026-07-31** after an external review found five critical defects. The changes
-here are structural, not cosmetic: a capability-inventory phase now precedes all design
-work, and the vocabulary/format seam is rebuilt around layout primitives. The previous
-list required editing a delivery format in order to add a vocabulary — a direct violation
-of FR-009, in the phase meant to prove additivity.
+**Revised 2026-07-31**, twice, after two external reviews.
+
+The first found that the previous list required editing a delivery format in order to add
+a vocabulary — a direct violation of FR-009, in the phase meant to prove additivity. The
+response was structural: a capability-inventory phase now precedes all design work, and
+the vocabulary/format seam is rebuilt around layout primitives.
+
+The second found the same principle violated one level up: the rewritten task still
+permitted extending the shared primitive set from inside the vocabulary-addition phase.
+A missing primitive is now a **stop condition** that returns to Phase 0, and the isolation
+property is asserted against the *real* research vocabulary and not only a throwaway pack
+— the gap that let both violations through.
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -63,7 +70,7 @@ be expressed, not guessed.
 - [ ] T006 Initialize the Node project in `package.json` with the dependencies selected in research R16 — Ajv on its **2020-12 entry point** (the default export is an older draft), PptxGenJS, the pdf.js distribution, and the **prebuilt** N-API canvas backend (a source build would require a compiler on Windows); pin versions, set `"type": "module"`
 - [ ] T007 [P] Add `tools/requirements.txt` pinning the Python presentation reader used by the presentation-file extraction adapter
 - [ ] T008 [P] Configure linting and formatting in `eslint.config.mjs` and `.editorconfig`
-- [ ] T009 [P] Add npm scripts in `package.json` for every quickstart scenario (`test:rerender`, `test:gates`, `test:isolation`, `test:adapters`, `test:visual`, `test:promotion`, `test:scrub`) so validation runs identically on Windows and POSIX (quickstart Platform note, FR-P1)
+- [ ] T009 [P] Add npm scripts in `package.json` covering **all twelve** quickstart scenarios — `deck` (the CLI entry every scenario invokes), `test:rerender`, `test:gates`, `test:isolation`, `test:adapters`, `test:visual`, `test:promotion`, `test:scrub`, `test:intake`, and `test:inventory` — so validation runs identically on Windows and POSIX with no shell built-ins (quickstart Platform note)
 - [ ] T010 Extend `.gitignore` for `out/staging/` and `out/delivered/`, keeping the scrub-denylist and workspace-artifact rules intact (FR-025)
 - [ ] T011 Record licences for every selected dependency in `THIRD-PARTY-NOTICES.md` **in this same change**, not later (Principle VII, research R16)
 
@@ -99,7 +106,7 @@ be expressed, not guessed.
 - [ ] T024 Implement the shared structural verifier in `src/gates/structural.mjs` — take each target's extraction and compare against the plan, hard-failing on notes missing, count mismatch, plan content absent, and render artifacts (FR-016). Comparison lives here; extraction never does
 - [ ] T025 Implement staging in `src/delivery/staging.mjs` — renderers write only under `out/staging/<build-id>/` (FR-038)
 - [ ] T026 Implement build records in `src/delivery/record.mjs` — plan digest, vocabulary, theme, per-target artifact digests and toolchain versions (FR-039)
-- [ ] T027 Implement atomic promotion in `src/delivery/promote.mjs` — refuse unless the record's verification is `passed`; promote all-or-nothing so no state exists with some targets delivered and others half-written (FR-038, SC-015)
+- [ ] T027 Implement **per-target** atomic promotion in `src/delivery/promote.mjs` — each target promotes independently, gated on its own verification being `passed`; atomicity is within a target, so no state exists where a target is half-delivered. A target that did not pass MUST NOT block unrelated targets that did, and the run still reports `incomplete` at build level (FR-038, SC-015)
 - [ ] T028 Implement phase-named, non-overwriting backups in `src/delivery/backup.mjs` (FR-021, R8)
 
 ### Command surface and fixtures
@@ -178,12 +185,13 @@ verified by its own adapter, visual defects actually caught, nothing delivered u
 directory, **in both directions**.
 
 - [ ] T060 [US2] Add the dense attribution-carrying research vocabulary to `packs/research/` — `pack.json`, content schemas, theme tokens, `rules.json` — from `../research-deck-builder/SLIDE_BLUEPRINTS.md`
-- [ ] T061 [US2] Implement `packs/research/compile.mjs` translating the research archetypes into primitives. **This is the real additivity test**: if it cannot be done without editing a delivery format, the primitive set is short a kind — add the kind to `src/render-ir/` (FR-036), never a special case to a renderer. The previous task list failed exactly here
-- [ ] T062 [US2] Implement attribution rendering for the styles the research vocabulary declares, as an `attribution-line` primitive emitted by its compiler (FR-014)
-- [ ] T063 [P] [US2] Add throwaway fixture packs `examples/throwaway-vocabulary/` and `examples/throwaway-target/` with minimal valid manifests, compiler, renderer, and adapter
-- [ ] T064 [US2] **Isolation test, direction A** in `tests/isolation/add-vocabulary.test.mjs` — add the throwaway vocabulary, render to an existing format, assert every changed file is inside the new pack and **no delivery format changed**
-- [ ] T065 [US2] **Isolation test, direction B** in `tests/isolation/add-target.test.mjs` — add the throwaway target, render an existing vocabulary's plan to it, assert every changed file is inside the new pack and **no vocabulary changed**
-- [ ] T066 [US2] **Reference search test** in `tests/isolation/no-cross-reference.test.mjs` — no vocabulary pack contains a delivery format id; no delivery format pack contains a vocabulary id or slide type name (SC-013). Catches coupling written in from the start, which a diff cannot see
+- [ ] T061 [US2] Implement `packs/research/compile.mjs` translating the research archetypes into primitives, **touching no file outside `packs/research/`**. If a needed primitive kind does not exist, **STOP** — do not extend `src/render-ir/` from inside this phase. A missing primitive here is evidence that the Phase 0 derivation (T002) was incomplete: return there, fix the inventory-to-primitive mapping and the primitive set as foundational work, then restart this task from a clean tree. Adding a vocabulary must remain a zero-outside-pack change (FR-009, SC-003, Principle IV) — permitting an inline core edit is how the previous task list violated the principle it was meant to prove
+- [ ] T062 [US2] Assert the isolation property on the **real** vocabulary, not just the throwaway one, in `tests/isolation/add-research-vocabulary.test.mjs` — record the tree before T060–T061 and confirm every changed file is inside `packs/research/`. The throwaway-pack tests cannot catch a real vocabulary quietly requiring core edits, which is precisely the gap that let the previous violation through
+- [ ] T063 [US2] Implement attribution rendering for the styles the research vocabulary declares, as an `attribution-line` primitive emitted by its compiler (FR-014)
+- [ ] T064 [P] [US2] Add throwaway fixture packs `examples/throwaway-vocabulary/` and `examples/throwaway-target/` with minimal valid manifests, compiler, renderer, and adapter
+- [ ] T065 [US2] **Isolation test, direction A** in `tests/isolation/add-vocabulary.test.mjs` — add the throwaway vocabulary, render to an existing format, assert every changed file is inside the new pack and **no delivery format changed**
+- [ ] T066 [US2] **Isolation test, direction B** in `tests/isolation/add-target.test.mjs` — add the throwaway target, render an existing vocabulary's plan to it, assert every changed file is inside the new pack and **no vocabulary changed**
+- [ ] T067 [US2] **Reference search test** in `tests/isolation/no-cross-reference.test.mjs` — no vocabulary pack contains a delivery format id; no delivery format pack contains a vocabulary id or slide type name (SC-013). Catches coupling written in from the start, which a diff cannot see
 
 **Checkpoint**: two real vocabularies and six formats coexist; additivity proven by test in
 both directions.
@@ -192,25 +200,30 @@ both directions.
 
 ## Phase 5: User Story 3 — From a long source to a reviewed plan (Priority: P3)
 
-- [ ] T067 [US3] Implement intake as an invocable phase in `src/intake/propose.mjs` with declared supported input types, a defined output location, and an explicit approval state — not guidance prose alone (FR-041)
-- [ ] T068 [US3] Implement source traceability in `src/intake/trace.mjs` — every proposed slide records the location in the source it derives from (FR-042, SC-017)
-- [ ] T069 [US3] Implement attribution extraction and consistency checking in `src/intake/attributions.mjs`, surfacing prose-versus-list mismatches rather than resolving them (FR-015)
-- [ ] T070 [US3] Implement the approval checkpoint in `bin/deck.mjs` — present the slide-by-slide plan and require explicit approval before any compile or render (FR-013)
-- [ ] T071 [P] [US3] Write intake guidance in `references/intake.md` with a "When to read this" trigger (Principle V), absorbing `source-to-presentation-synthesis/SKILL.md` and the router's speaker-script guidance
-- [ ] T072 [P] [US3] Add the non-slide targets `packs/spoken-script/`, `packs/rundown/`, `packs/storyboard/` — renderers over the same primitives plus unit notes, each with its own extraction adapter; `rundown` consumes `duration_sec` (FR-032, R5)
-- [ ] T073 [US3] Traceability test in `tests/intake/trace.test.mjs` — every slide in a proposed plan resolves to a source location (SC-017)
+- [ ] T068 [US3] Implement intake as an invocable phase in `src/intake/propose.mjs` with declared supported input types, a defined output location, and an explicit approval state — not guidance prose alone (FR-041)
+- [ ] T069 [US3] Implement source traceability in `src/intake/trace.mjs` — every proposed slide records the location in the source it derives from (FR-042, SC-017)
+- [ ] T070 [US3] Implement attribution extraction and consistency checking in `src/intake/attributions.mjs`, surfacing prose-versus-list mismatches rather than resolving them (FR-015)
+- [ ] T071 [US3] Implement the approval checkpoint in `bin/deck.mjs` — present the slide-by-slide plan and require explicit approval before any compile or render (FR-013)
+- [ ] T072 [P] [US3] Write intake guidance in `references/intake.md` with a "When to read this" trigger (Principle V), absorbing `source-to-presentation-synthesis/SKILL.md` and the router's speaker-script guidance
+- [ ] T073 [P] [US3] Add the non-slide targets `packs/spoken-script/`, `packs/rundown/`, `packs/storyboard/` — renderers over the same primitives plus unit notes, each with its own extraction adapter; `rundown` consumes `duration_sec` (FR-032, R5)
+- [ ] T074 [P] [US3] Add intake fixtures in `examples/intake/` — a long-form source with known load-bearing figures, claims, and attributions, plus a variant whose attribution list is deliberately inconsistent with its prose
+- [ ] T075 [US3] Traceability test in `tests/intake/trace.test.mjs` — every slide in a proposed plan resolves to a source location (SC-017)
+- [ ] T076 [US3] Generation test in `tests/intake/propose.test.mjs` — intake on the fixture produces a plan that **passes `validate`** against its declared vocabulary, with no hand-editing (FR-012, SC-008)
+- [ ] T077 [US3] Fidelity test in `tests/intake/fidelity.test.mjs` — every known load-bearing figure and claim in the fixture appears in the proposed plan carrying the attribution the source gave it (FR-014). This is the requirement most likely to degrade silently, because a plan that drops a citation still renders and still passes every structural gate
+- [ ] T078 [US3] Inconsistency test in `tests/intake/attributions.test.mjs` — the deliberately inconsistent fixture causes intake to surface the mismatch to the author rather than resolving it (FR-015)
+- [ ] T079 [US3] Approval-blocking test in `tests/intake/approval.test.mjs` — a proposed but unapproved plan cannot compile, render, or promote; the checkpoint is a gate, not a prompt (FR-013)
 
 ---
 
 ## Phase 6: User Story 4 — Nothing unpublishable can be published (Priority: P4)
 
-- [ ] T074 [US4] Implement the scanner in `src/scrub/scan.mjs` — parse the `[cs-word]` / `[ci-word]` / `[regex]` denylist sections; scan **tracked files and candidate files** (staged, or newly present and not ignored). A tracked-only scan is blind exactly when material has just been copied in (FR-022, R15)
-- [ ] T075 [US4] Implement fail-closed behaviour in `src/scrub/scan.mjs` — missing or unreadable denylist exits **4**, never 0 (FR-023)
-- [ ] T076 [P] [US4] Add the false-positive regression fixture in `tests/scrub/fixtures/` — *forecasting*, *lasting*, *contrasting*, and a currency code used as a language name, none of which may match (FR-024)
-- [ ] T077 [US4] Install the commit-time hook in `tools/hooks/pre-commit` and wire its installation into project setup, so a denied term blocks the commit without anyone remembering to run the check (FR-040)
-- [ ] T078 [US4] Report hook installation status in `deck packs`, so a repository missing its enforcement is visible rather than silently unprotected
-- [ ] T079 [US4] Scrub tests in `tests/scrub/scan.test.mjs` — tracked hit exits 1; **untracked newly copied hit exits 1**; missing denylist exits 4; regression fixture yields zero findings; `git ls-files` never contains the denylist path (SC-006, SC-016, FR-026)
-- [ ] T080 [US4] Document the check in `references/publishing.md`, noting that the hook is the control and the documentation is not
+- [ ] T080 [US4] Implement the scanner in `src/scrub/scan.mjs` — parse the `[cs-word]` / `[ci-word]` / `[regex]` denylist sections; scan **tracked files and candidate files** (staged, or newly present and not ignored). A tracked-only scan is blind exactly when material has just been copied in (FR-022, R15)
+- [ ] T081 [US4] Implement fail-closed behaviour in `src/scrub/scan.mjs` — missing or unreadable denylist exits **4**, never 0 (FR-023)
+- [ ] T082 [P] [US4] Add the false-positive regression fixture in `tests/scrub/fixtures/` — *forecasting*, *lasting*, *contrasting*, and a currency code used as a language name, none of which may match (FR-024)
+- [ ] T083 [US4] Install the commit-time hook in `tools/hooks/pre-commit` and wire its installation into project setup, so a denied term blocks the commit without anyone remembering to run the check (FR-040)
+- [ ] T084 [US4] Report hook installation status in `deck packs`, so a repository missing its enforcement is visible rather than silently unprotected
+- [ ] T085 [US4] Scrub tests in `tests/scrub/scan.test.mjs` — tracked hit exits 1; **untracked newly copied hit exits 1**; missing denylist exits 4; regression fixture yields zero findings; `git ls-files` never contains the denylist path (SC-006, SC-016, FR-026)
+- [ ] T086 [US4] Document the check in `references/publishing.md`, noting that the hook is the control and the documentation is not
 
 **Checkpoint**: publish safety is enforced, covers newly copied material, and is auditable.
 
@@ -221,25 +234,26 @@ both directions.
 **Depends on**: US4 — absorbing external material without the scrub check in place would
 violate Principle VI at the moment of highest risk.
 
-- [ ] T081 [US5] Absorb **tracked files only** from `../research-deck-builder`; run `deck scrub` after the copy and **before** staging — now meaningful, since the scan covers untracked candidate files (FR-030, R10, R15)
-- [ ] T082 [P] [US5] Absorb `convert-pptx-to-handout/` and `summarize-slide-images-to-note/` as post-processing utilities under `tools/`, preserving behaviour
-- [ ] T083 [P] [US5] Absorb the two advisory router modes into `references/advisory.md` as utilities alongside the pipeline (FR-032)
-- [ ] T084 [US5] Verify `THIRD-PARTY-NOTICES.md` covers every absorbed artifact, having been updated in each absorbing change rather than retrospectively (FR-029, Principle VII)
-- [ ] T085 [US5] Rewrite `SKILL.md` as a lean router with "When to read this" triggers on every reference file (Principle V, FR-028)
-- [ ] T086 [US5] Rewrite `README.md` for the consolidated pipeline, removing the five-skill table and the superseded sibling-repository arrangement (FR-028, SC-010)
-- [ ] T087 [US5] Add a deprecation notice to `../research-deck-builder/README.md` directing readers here within the first screen (FR-033, SC-011)
-- [ ] T088 [US5] Re-confirm `migration-inventory.md` from T001 shows zero unaccounted entries now that everything is built (SC-007, SC-012)
-- [ ] T089 [US5] **Last step, gated on T088**: delete the superseded directories `presentation-studio/`, `keynote-deck-builder/`, `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`, `summarize-slide-images-to-note/`
+- [ ] T087 [US5] Absorb **tracked files only** from `../research-deck-builder`; run `deck scrub` after the copy and **before** staging — now meaningful, since the scan covers untracked candidate files (FR-030, R10, R15)
+- [ ] T088 [P] [US5] Absorb `convert-pptx-to-handout/` and `summarize-slide-images-to-note/` as post-processing utilities under `tools/`, preserving behaviour
+- [ ] T089 [P] [US5] Absorb the two advisory router modes into `references/advisory.md` as utilities alongside the pipeline (FR-032)
+- [ ] T090 [US5] Verify `THIRD-PARTY-NOTICES.md` covers every absorbed artifact, having been updated in each absorbing change rather than retrospectively (FR-029, Principle VII)
+- [ ] T091 [US5] Rewrite `SKILL.md` as a lean router with "When to read this" triggers on every reference file (Principle V, FR-028)
+- [ ] T092 [US5] Rewrite `README.md` for the consolidated pipeline, removing the five-skill table and the superseded sibling-repository arrangement (FR-028, SC-010)
+- [ ] T093 [US5] **Cross-repository change** — in `../research-deck-builder` (a separate Git repository, `github.com/kurtvalcorza/research-deck-builder`): create a branch, add a deprecation notice to `README.md` directing readers here within the first screen, and open a PR. Do not commit to its default branch. This is a second repository's release cycle, not a file edit in this one (FR-033)
+- [ ] T094 [US5] Record the cross-repository dependency in `specs/001-deck-ir-consolidation/migration-inventory.md` — SC-011 cannot be marked satisfied from inside this repository, because it is a claim about a different one. It closes only when T087's PR merges, and this feature MUST NOT be reported complete while that is outstanding
+- [ ] T095 [US5] Re-confirm `migration-inventory.md` from T001 shows zero unaccounted entries now that everything is built (SC-007, SC-012)
+- [ ] T096 [US5] **Last step, gated on T095**: delete the superseded directories `presentation-studio/`, `keynote-deck-builder/`, `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`, `summarize-slide-images-to-note/`
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T090 [P] Add "When to read this" headers to every file in `references/` and verify none is loaded upfront (Principle V)
-- [ ] T091 [P] Write `examples/README.md` explaining each fixture and the quickstart scenario it serves
-- [ ] T092 Run every quickstart scenario on Windows and on POSIX via the npm scripts from T009, confirming identical exit codes
-- [ ] T093 Verify all 42 functional requirements are exercised by a test or quickstart scenario; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
-- [ ] T094 Run `deck scrub` over the final tree and confirm zero violations before proposing the branch for merge (Principle VI)
+- [ ] T097 [P] Add "When to read this" headers to every file in `references/` and verify none is loaded upfront (Principle V)
+- [ ] T098 [P] Write `examples/README.md` explaining each fixture and the quickstart scenario it serves
+- [ ] T099 Run every quickstart scenario on Windows and on POSIX via the npm scripts from T009, confirming identical exit codes
+- [ ] T100 Verify all 42 functional requirements are exercised by a test or quickstart scenario; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
+- [ ] T101 Run `deck scrub` over the final tree and confirm zero violations before proposing the branch for merge (Principle VI)
 
 ---
 
@@ -259,7 +273,7 @@ US1 (P1) MVP     US3 (P3)      US4 (P4)
 US2 (P2)                            ↓
    └───────────────┬────────────────┘
                    ↓
-               US5 (P5)  ←── needs US4's scrub; T089 gated on T088
+               US5 (P5)  ←── needs US4's scrub; T096 gated on T095
                    ↓
               Phase 8 Polish
 ```
@@ -269,7 +283,7 @@ US2 (P2)                            ↓
 - **US2 depends on US1** — additivity is proven by adding a *second* vocabulary.
 - **US5 depends on US4** — and now genuinely benefits from it, since the scan finally sees
   the untracked files the absorption creates.
-- **T089 is gated on T088**, not merely ordered after it.
+- **T096 is gated on T095**, not merely ordered after it.
 
 ## Parallel Execution Examples
 
@@ -280,11 +294,11 @@ US2 (P2)                            ↓
 **Phase 3**: T038 (freeze runtime) and T040 (document manifest) are independent of the
 renderer work. T043/T044 (adapters) run together. T050/T051 and T056 run together.
 
-**Phase 4**: T063 is independent of T060–T062.
+**Phase 4**: T064 (throwaway fixtures) is independent of T060–T063.
 
-**Phase 5**: T071 and T072 are independent of T067–T070.
+**Phase 5**: T072 (guidance) and T073 (non-slide targets) are independent of T068–T071; T074 (fixtures) is independent of all of them.
 
-**Phase 7**: T082 and T083 are independent absorptions.
+**Phase 7**: T088 and T089 are independent absorptions.
 
 ## Implementation Strategy
 
@@ -300,4 +314,4 @@ US4 is what makes that safe.
 
 **US3 can run in parallel** once Phase 2 completes.
 
-**Do not start Phase 7 deletions until T088 shows zero unaccounted capabilities.**
+**Do not start Phase 7 deletions until T095 shows zero unaccounted capabilities.**

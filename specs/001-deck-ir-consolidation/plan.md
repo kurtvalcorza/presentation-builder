@@ -42,7 +42,10 @@ vendored, shared by the visual gate and the document format
 **Storage**: files on disk. The deck plan is the durable artifact; built outputs are
 regenerable and deliberately untracked
 
-**Testing**: contract tests for schema composition, golden-file tests per renderer, gate
+**Testing**: contract tests for schema composition, golden tests per renderer comparing a
+**normalized extraction** rather than raw bytes (a presentation file is a ZIP carrying
+timestamps and entry ordering, so byte comparison fails on unchanged re-runs — research
+R9), gate
 tests over deliberately defective decks, and a pack-isolation test asserting via
 file-level diff that adding a pack changes nothing outside its directory
 
@@ -137,7 +140,7 @@ specs/001-deck-ir-consolidation/
 ├── spec.md              # Feature specification
 ├── research.md          # Phase 0 output — 10 decisions
 ├── data-model.md        # Phase 1 output — entities and state transitions
-├── quickstart.md        # Phase 1 output — 9 validation scenarios
+├── quickstart.md        # Phase 1 output — 12 validation scenarios
 ├── contracts/           # Phase 1 output
 │   ├── deck-plan.schema.md
 │   ├── render-ir.md     # the closed primitive set (second seam)
@@ -183,7 +186,7 @@ references/                      # progressive-disclosure docs, "When to read th
 
 tests/
 ├── contract/                    # schema composition accepts/rejects
-├── golden/                      # per-renderer byte-stable output
+├── golden/                      # per-renderer normalized-extraction comparison
 ├── gates/                       # defective decks are blocked
 └── isolation/                   # adding a pack changes nothing outside it
 

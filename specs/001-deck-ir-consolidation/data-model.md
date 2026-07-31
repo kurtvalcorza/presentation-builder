@@ -182,6 +182,7 @@ A named output. Covers both slide outputs and the non-slide views of the same pl
 | `kind` | yes | `target`. |
 | `produces` | yes | What it emits — a presentation file, a web page, a document, or a text artifact. |
 | `supported_primitives` | yes | Primitive kinds it can render, or a wildcard. Drives FR-011. |
+| `carries` | yes | Which canonical fields this artifact type can represent — content, notes, attributions, unit identity — and which visual surfaces it has. |
 | `verification_adapter` | yes | Entry point extracting canonical content from its artifact type (FR-037). |
 | `requires` | no | External toolchains it needs. Absence triggers honest degradation (R6). |
 | `derives_from` | no | Another format id this one converts. Used by the document format (R4). |
@@ -219,9 +220,14 @@ shared verifier can compare against the plan (R13).
 - Extraction is format-specific; **comparison is not**. The adapter only extracts; the
   shared verifier decides pass or fail. This is what keeps verification logic out of the
   packs and pack knowledge out of the verifier.
-- A format that cannot preserve a field reports it absent rather than inventing it — a
-  text artifact with no notes channel says so, and the verifier judges that against the
-  format's declared capability rather than failing blindly.
+- A format that cannot preserve a field reports it absent rather than inventing it, and
+  the verifier judges that against the format's declared `carries` rather than failing
+  blindly. Without that declaration the verifier could not tell a format that *has no
+  notes channel* from a format that *lost the notes* — the first is correct behaviour and
+  the second is exactly the defect FR-016 exists to catch.
+- An adapter's `absent_fields` MUST agree with its pack's `carries`. Disagreement is a
+  packaging defect and is reported as one; a format cannot dodge a check by claiming at
+  runtime that it never carried the field.
 
 ---
 
@@ -242,8 +248,14 @@ Binds a verification result to what was actually rendered (R14, FR-039).
   matching record can be verified on request, but the result MUST state that provenance
   could not be established — "these checks passed" is a weaker claim than "this is the
   verified output of this plan", and the two MUST NOT be reported identically.
-- Promotion from staging to the delivered location consumes the record and requires
-  `verification.overall == passed` (FR-038).
+- **Verification and promotion are per target.** Each entry in `artifacts` carries its own
+  verification result and is promoted independently, gated on that target's own `passed`.
+  Atomicity means *within* a target: either all of a target's artifacts are delivered or
+  none are, never half.
+- A build whose targets did not all succeed still promotes the ones that did, and still
+  reports `incomplete` at the build level so no caller mistakes it for full delivery.
+  Whole-build atomicity was considered and rejected: it would let one absent toolchain
+  block delivery of every unrelated target (see `cli-and-verifier.md`).
 
 ---
 
@@ -257,15 +269,29 @@ The outcome of the gates. Three states, because two cannot express "never checke
 | `gates` | yes | List of gate results. |
 | `overall` | yes | `passed`, `failed`, or `incomplete`. |
 
-Each gate result carries: gate name; status `passed` \| `failed` \| `not_run`; a reason
-when not `passed`; and per-finding detail identifying slide and field.
+Each gate result carries: gate name; status; a reason when not `passed`; and per-finding
+detail identifying slide and field.
+
+| Status | Meaning | Contribution to `overall` |
+|---|---|---|
+| `passed` | Ran; nothing at `error` severity | none |
+| `failed` | Ran; at least one `error` | forces `failed` |
+| `not_run` | Could not execute. Carries `reason` | forces `incomplete` |
+| `not_applicable` | No such surface exists for this format | **none** |
 
 **Rules**
 
-- `overall` is `passed` only when every gate is `passed`. Any `not_run` yields
-  `incomplete` — never `passed` (FR-019).
-- Delivery proceeds only on `passed` (FR-018). `incomplete` does not authorise delivery;
-  it authorises an explicit, informed decision by the author.
+- `overall` is `passed` when every gate is `passed` or `not_applicable`; `failed` if any
+  gate failed; `incomplete` if any gate is `not_run` and none failed (FR-019).
+- **`not_applicable` is a distinct state, not a flavour of `not_run`.** A plain-text
+  artifact has no visual surface — there is nothing to inspect, and nobody failed to
+  inspect it. A missing toolchain means there *is* something to inspect and nobody looked.
+  Collapsing the two would either block text targets permanently or silently excuse an
+  unrun visual gate; both are wrong, in opposite directions.
+- A gate MUST NOT report `not_applicable` for a surface the format actually has. The claim
+  is checked against the format's declared `carries` (see `pack-contract.md`), so a format
+  cannot excuse itself from a gate by asserting inapplicability.
+- Delivery of a target proceeds only when that target's `overall` is `passed` (FR-018).
 
 ---
 
