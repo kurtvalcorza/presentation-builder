@@ -65,7 +65,7 @@ must degrade honestly (exit 3, never exit 0); the denied-term list must never be
 published
 
 **Scale/Scope**: 2 vocabulary packs at delivery (extensible), **6** delivery format packs
-(presentation-file, web, document, spoken-script, rundown, storyboard), 42 functional
+(presentation-file, web, document, spoken-script, rundown, storyboard), 43 functional
 requirements, 17 success criteria, 5 user stories; absorbs 2 standalone builders, 8 router
 modes, 1 intake component, and 2 post-processing utilities
 

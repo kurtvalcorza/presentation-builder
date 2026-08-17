@@ -55,7 +55,7 @@ reported as such and exits non-zero — never presented as full success.
 
 ```text
 ✓ presentation-file   deck.pptx     structural PASS   visual PASS (12 slides, automated)
-✓ web                 index.html    structural PASS   visual PASS (12 sections, automated)
+✓ web                 index.html    structural PASS   visual PASS (12 sections, human review)
 ✗ document            —             unavailable: office-converter not found
 ✓ spoken-script       script.md     structural PASS   visual N/A (no visual surface)
 
@@ -66,6 +66,17 @@ Every `structural PASS` above is backed by that format's own verification adapte
 (FR-037). A format with no adapter cannot report a structural result at all — the earlier
 draft of this contract printed passing structural gates for formats that had no verifier,
 which is the defect FR-016 and SC-014 now close.
+
+**Why web's visual verdict reads `human review`, not `automated`.** HTML has a real visual
+surface, but the project ships no automated way to capture it. The automated visual path
+rasterizes a presentation file through the office toolchain (R4); rasterizing a web page
+would need a headless browser, a dependency the project deliberately declines (R4). So a
+web target's visual gate runs only through the human-review path (R12): a person records a
+verdict against the rendered HTML. Until one does, the gate is `not_run`, which leaves web
+`incomplete` and unpromotable — never silently passed. An unattended `build` therefore does
+not certify web visually on its own; the run above is an attended one in which a reviewer
+recorded that verdict. An earlier draft printed `automated` here, promising a capture path
+no task builds — the manufactured-confidence defect FR-017 exists to forbid.
 
 ### Atomicity is per target, not per build
 
@@ -143,9 +154,14 @@ has no visual surface, so there is nothing to inspect and nobody failed to inspe
 missing toolchain means there *is* something to inspect and nobody looked. Conflating them
 would either block text targets forever or excuse an unrun visual gate.
 
-**Hard-fail codes** (FR-016): `notes_missing`, `slide_count_mismatch`,
-`plan_content_absent`, `render_artifact`. `notes_missing` applies only where the format
-declares it carries notes — see `carries` in `pack-contract.md`.
+**Hard-fail codes** (FR-016): `notes_missing`, `attributions_missing`,
+`slide_count_mismatch`, `plan_content_absent`, `render_artifact`. `notes_missing` applies
+only where the format declares it carries notes, and `attributions_missing` only where the
+format declares it carries attributions — see `carries` in `pack-contract.md`. The verifier
+compares each unit's `unit_attributions` against the plan's attributions the same way it
+compares notes: a format that declares `carries.attributions` and then drops or mangles a
+citation hard-fails, because a silently uncredited source is exactly the loss FR-014 and
+FR-016 exist to prevent, and it would otherwise pass every other structural check.
 
 ---
 

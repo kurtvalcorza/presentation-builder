@@ -153,9 +153,10 @@ declaration those two are indistinguishable, and the verifier must either fail e
 text-only format or excuse every dropped note.
 
 **Interaction with FR-016.** The `notes_missing` hard failure applies only where
-`carries.notes` is true. This is not a weakening of FR-016 — a format that declares
-`notes: true` and drops them still hard-fails. It scopes the check to formats where the
-requirement is meaningful.
+`carries.notes` is true, and `attributions_missing` only where `carries.attributions` is
+true. This is not a weakening of FR-016 — a format that declares `notes: true` or
+`attributions: true` and then drops them still hard-fails. It scopes each check to the
+formats where the requirement is meaningful.
 
 **Not self-certification.** A gate reports `not_applicable` only where `carries.surfaces`
 lacks that surface, and an adapter's `absent_fields` must agree with `carries`. A format

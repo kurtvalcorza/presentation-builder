@@ -53,6 +53,7 @@ is dispatched to the schema supplied by the declared vocabulary pack for that sl
             }
           }
         },
+        "source_location": { "type": "string", "minLength": 1 },
         "duration_sec": { "type": "number", "exclusiveMinimum": 0 }
       }
     }
@@ -118,3 +119,16 @@ vocabulary layer be strict.
 **Why `additionalProperties: false` throughout.** A permissive envelope would let packs
 smuggle in fields the core cannot see, and FR-011 depends on the core knowing everything
 a plan asks for.
+
+**Why `source_location` lives here and is optional.** FR-042 and T069 require every slide
+that intake *proposes* to record where in the source it derives from, so a figure or claim
+can be traced back without re-reading the source (SC-017). Because the slide schema is
+closed (`additionalProperties: false`), that trace needs a first-class field or intake
+cannot emit a plan that both validates (T076) and carries the trace (T075) — the closed
+envelope would otherwise reject it. It is **optional** because a hand-authored plan has no
+originating source location to record; the traceability test (T075) asserts its presence
+only for intake-generated plans. It is a free-form locator (e.g. `report.md:L42-58`,
+`§3.2`, a page anchor), not a structured range, so the schema constrains only that it be
+non-empty when present. It is distinct from `attribution[].source`, which credits the
+work a claim came from; `source_location` points at where in the author's own source
+material the slide was drawn.

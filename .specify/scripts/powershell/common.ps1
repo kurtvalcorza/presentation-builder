@@ -53,11 +53,16 @@ function Resolve-SpecifyInitDir {
         if ($ReturnNullOnError) { return $null }
         exit 1
     }
-    # Resolve-Path echoes back any trailing separator from the input; trim it so
+    # Resolve-Path echoes back any trailing separator from the input; strip it so
     # the returned root matches the bash resolver, whose `cd && pwd` never yields
-    # one. TrimEndingDirectorySeparator is a no-op on a bare root and on a path
-    # that already has no trailing separator.
-    $initRoot = [System.IO.Path]::TrimEndingDirectorySeparator($resolved.Path)
+    # one. TrimEnd (not [Path]::TrimEndingDirectorySeparator, which is .NET Core
+    # only) keeps this working on Windows PowerShell 5.1 / .NET Framework — the
+    # same compatibility choice made at the CURRENT_BRANCH fallback below. Guard
+    # the bare-root case (`C:\` or `/`) so trimming never mangles it into `C:` or
+    # an empty string; TrimEndingDirectorySeparator was likewise a no-op there.
+    $initRoot = $resolved.Path
+    $initTrimmed = $initRoot.TrimEnd('/', '\')
+    if ($initTrimmed -and ($initTrimmed -notmatch '^[A-Za-z]:$')) { $initRoot = $initTrimmed }
     if (-not (Test-Path -LiteralPath (Join-Path $initRoot '.specify') -PathType Container)) {
         [Console]::Error.WriteLine("ERROR: SPECIFY_INIT_DIR is not a Spec Kit project (no .specify/ directory): $initRoot")
         if ($ReturnNullOnError) { return $null }
@@ -311,15 +316,20 @@ function Format-SpecKitCommand {
 
 # Find a usable Python 3 executable (python3, python, or py -3).
 # Returns the command/arguments as an array, or $null if none found.
+# The leading `,` on each return wraps the array so PowerShell's pipeline does
+# NOT unroll a one-element result to a bare string. Without it, `python3`/`python`
+# would come back as the scalar 'python3', and the caller's `$pyCmd[0]` would index
+# the string's first character ('p') and try to run it — silently falling back to
+# 'replace' composition and discarding prepend/append/wrap presets.
 function Get-Python3Command {
-    if (Get-Command python3 -ErrorAction SilentlyContinue) { return @('python3') }
+    if (Get-Command python3 -ErrorAction SilentlyContinue) { return ,@('python3') }
     if (Get-Command python -ErrorAction SilentlyContinue) {
         $ver = & python --version 2>&1
-        if ($ver -match 'Python 3') { return @('python') }
+        if ($ver -match 'Python 3') { return ,@('python') }
     }
     if (Get-Command py -ErrorAction SilentlyContinue) {
         $ver = & py -3 --version 2>&1
-        if ($ver -match 'Python 3') { return @('py', '-3') }
+        if ($ver -match 'Python 3') { return ,@('py', '-3') }
     }
     return $null
 }

@@ -103,9 +103,9 @@ be expressed, not guessed.
 
 - [ ] T022 Implement the three-state gate result model in `src/gates/report.mjs` — any `not_run` yields `incomplete`, never `passed` (FR-019); distinguish `not_run` (nobody looked) from `N/A` (no such surface)
 - [ ] T023 Implement the generic rule-kind evaluator in `src/gates/rules.mjs` supporting the kinds confirmed in T004, with **no branching on pack id** (FR-010)
-- [ ] T024 Implement the shared structural verifier in `src/gates/structural.mjs` — take each target's extraction and compare against the plan, hard-failing on notes missing, count mismatch, plan content absent, and render artifacts (FR-016). Comparison lives here; extraction never does
+- [ ] T024 Implement the shared structural verifier in `src/gates/structural.mjs` — take each target's extraction and compare against the plan, hard-failing on notes missing, **attributions missing or mismatched** (`attributions_missing`, scoped to formats declaring `carries.attributions`), count mismatch, plan content absent, and render artifacts (FR-016). Comparison lives here; extraction never does
 - [ ] T025 Implement staging in `src/delivery/staging.mjs` — renderers write only under `out/staging/<build-id>/` (FR-038)
-- [ ] T026 Implement build records in `src/delivery/record.mjs` — plan digest, vocabulary, theme, per-target artifact digests and toolchain versions (FR-039)
+- [ ] T026 Implement build records in `src/delivery/record.mjs` — plan digest, **an immutable plan snapshot whose digest equals `plan_digest`** (so `verify --build` can compare against expected units/text/notes/attributions without the original build process, and rejects a snapshot that fails to match its digest), vocabulary, theme, per-target artifact digests and toolchain versions (FR-039)
 - [ ] T027 Implement **per-target** atomic promotion in `src/delivery/promote.mjs` — each target promotes independently, gated on its own verification being `passed`; atomicity is within a target, so no state exists where a target is half-delivered. A target that did not pass MUST NOT block unrelated targets that did, and the run still reports `incomplete` at build level (FR-038, SC-015)
 - [ ] T028 Implement phase-named, non-overwriting backups in `src/delivery/backup.mjs` (FR-021, R8)
 
@@ -154,8 +154,8 @@ notes, nothing authored twice.
 ### Visual gate
 
 - [ ] T046 [US1] Implement rasterizing in `src/gates/visual-render.mjs` — office converter for presentation-file → PDF, then the Node PDF rasterizer → per-slide images, into a fresh directory each run
-- [ ] T047 [US1] Implement the visual **inspection** in `src/gates/visual.mjs` — automated checks for the mechanically detectable defects the superseded builders enumerated (text overflow, clipping, element overlap, contrast below threshold, margin breach), producing a recorded verdict naming what was inspected and what was found. **Rasterizing alone reports `not_run`, never `passed`** (FR-017, R12)
-- [ ] T048 [US1] Implement the human-review path in `src/gates/visual.mjs` — record an explicit verdict against the rendered images, so a human pass is auditable and distinguishable from nobody looking (R12)
+- [ ] T047 [US1] Implement the visual **inspection** in `src/gates/visual.mjs` — automated checks for the mechanically detectable defects the superseded builders enumerated (text overflow, clipping, element overlap, contrast below threshold, margin breach), producing a recorded verdict naming what was inspected and what was found. **Rasterizing alone reports `not_run`, never `passed`** (FR-017, R12). This automated path applies only to targets with a raster capture path (the presentation file and formats derived from it). A target whose visual surface has no automated capture — **web/HTML, which would need the headless browser R4 declines** — cannot use this path; its automated visual gate is `not_run`, never `passed`, and it is certified only through T048 (R12, R4)
+- [ ] T048 [US1] Implement the human-review path in `src/gates/visual.mjs` — record an explicit verdict against the rendered images, so a human pass is auditable and distinguishable from nobody looking (R12). This is the **only** visual certification available to formats with no automated capture path (web/HTML): without a recorded verdict such a target stays `not_run` and unpromotable, never silently passed
 
 ### Build pipeline
 
@@ -164,14 +164,14 @@ notes, nothing authored twice.
 ### Tests
 
 - [ ] T050 [P] [US1] Golden tests in `tests/golden/` comparing a **normalized extraction** — units, text, notes, attributions, ordering, theme tokens — not raw bytes. A presentation file is a ZIP carrying timestamps and entry ordering, so byte comparison fails on unchanged re-runs and the test gets deleted (R9 correction)
-- [ ] T051 [P] [US1] Add defect fixtures `examples/defect-notes-missing.json`, `examples/defect-count-mismatch.json`, `examples/defect-content-absent.json`
+- [ ] T051 [P] [US1] Add defect fixtures `examples/defect-notes-missing.json`, `examples/defect-attribution-missing.json`, `examples/defect-count-mismatch.json`, `examples/defect-content-absent.json`
 - [ ] T052 [US1] Gate tests in `tests/gates/blocked.test.mjs` — each fixture exits 1, names the failing slide, delivers nothing (SC-005, quickstart 4)
 - [ ] T053 [US1] Degradation test in `tests/gates/degradation.test.mjs` — office converter absent ⇒ exit **3 not 0**, document unavailable, overall `incomplete` (FR-019, quickstart 5)
 - [ ] T054 [US1] Refusal test in `tests/contract/refusal.test.mjs` — an invalid plan creates zero output files anywhere, staging included (quickstart 3)
 - [ ] T055 [US1] **Note-binding test** in `tests/contract/note-binding.test.mjs` — reorder, insert, and delete slides, then assert notes and attributions still belong to the slide they started on, keyed by `id`. Only test covering FR-006, which is what justifies stable ids over ordinals; a regression still renders and passes every other gate
 - [ ] T056 [P] [US1] Re-render invariance test in `tests/golden/rerender.test.mjs` — a wording change reaches every target with no per-format edit; a theme-only change leaves unit text identical (FR-005, SC-009, quickstart 2)
-- [ ] T057 [US1] Adapter tests in `tests/adapters/` — corrupt each delivered artifact per format and confirm that format's own adapter causes the structural gate to fail (SC-014, quickstart 8)
-- [ ] T058 [US1] Visual gate tests in `tests/gates/visual.test.mjs` against fixtures with deliberate overflow, overlap, contrast, and margin defects (FR-017, quickstart 9)
+- [ ] T057 [US1] Adapter tests in `tests/adapters/` — corrupt each delivered artifact per format and confirm that format's own adapter causes the structural gate to fail (SC-014, quickstart 8). Include an attribution-dropping corruption on an **attribution-carrying** format and assert it hard-fails with `attributions_missing`, not a silent pass (FR-016)
+- [ ] T058 [US1] Visual gate tests in `tests/gates/visual.test.mjs` against fixtures with deliberate overflow, overlap, contrast, and margin defects (FR-017, quickstart 9). Include a **web-target** case asserting its automated visual gate is `not_run` (no HTML capture path — R4), that this leaves web `incomplete` and unpromotable, and that a recorded human verdict (T048) is what moves it to `passed` — never a silent automated pass
 - [ ] T059 [US1] Promotion tests in `tests/delivery/promotion.test.mjs` — failed gates leave the delivered location untouched; passing gates promote atomically; an artifact with no build record reports provenance unestablished and cannot be promoted (SC-015, quickstart 10)
 
 **Checkpoint**: MVP. One plan → primitives → several formats, every format structurally
@@ -201,17 +201,17 @@ both directions.
 ## Phase 5: User Story 3 — From a long source to a reviewed plan (Priority: P3)
 
 - [ ] T068 [US3] Implement intake as an invocable phase in `src/intake/propose.mjs` with declared supported input types, a defined output location, and an explicit approval state — not guidance prose alone (FR-041)
-- [ ] T069 [US3] Implement source traceability in `src/intake/trace.mjs` — every proposed slide records the location in the source it derives from (FR-042, SC-017)
+- [ ] T069 [US3] Implement source traceability in `src/intake/trace.mjs` — every proposed slide records its `source_location` (the optional free-form locator defined in `contracts/deck-plan.schema.md`) pointing at the place in the source it derives from (FR-042, SC-017)
 - [ ] T070 [US3] Implement attribution extraction and consistency checking in `src/intake/attributions.mjs`, surfacing prose-versus-list mismatches rather than resolving them (FR-015)
-- [ ] T071 [US3] Implement the approval checkpoint in `bin/deck.mjs` — present the slide-by-slide plan and require explicit approval before any compile or render (FR-013)
+- [ ] T071 [US3] Implement the approval checkpoint in `bin/deck.mjs` — run `validate` and the non-rendering `compile`/FR-011 support check *as part of presenting* the slide-by-slide plan, so the author sees any content a selected target cannot render at approval time (FR-011), then require explicit approval before any **render or promote**. The support check compiles to primitives but writes nothing and produces no artifact; it is the block on rendering and delivery — not on the pre-approval compile — that FR-013 requires (FR-011, FR-013)
 - [ ] T072 [P] [US3] Write intake guidance in `references/intake.md` with a "When to read this" trigger (Principle V), absorbing `source-to-presentation-synthesis/SKILL.md` and the router's speaker-script guidance
 - [ ] T073 [P] [US3] Add the non-slide targets `packs/spoken-script/`, `packs/rundown/`, `packs/storyboard/` — renderers over the same primitives plus unit notes, each with its own extraction adapter; `rundown` consumes `duration_sec` (FR-032, R5)
 - [ ] T074 [P] [US3] Add intake fixtures in `examples/intake/` — a long-form source with known load-bearing figures, claims, and attributions, plus a variant whose attribution list is deliberately inconsistent with its prose
-- [ ] T075 [US3] Traceability test in `tests/intake/trace.test.mjs` — every slide in a proposed plan resolves to a source location (SC-017)
+- [ ] T075 [US3] Traceability test in `tests/intake/trace.test.mjs` — every slide in an **intake-generated** plan carries a `source_location` that resolves to a real place in the fixture source, and the plan still passes `validate` with the field present (SC-017, guards the T075/T076 pairing)
 - [ ] T076 [US3] Generation test in `tests/intake/propose.test.mjs` — intake on the fixture produces a plan that **passes `validate`** against its declared vocabulary, with no hand-editing (FR-012, SC-008)
 - [ ] T077 [US3] Fidelity test in `tests/intake/fidelity.test.mjs` — every known load-bearing figure and claim in the fixture appears in the proposed plan carrying the attribution the source gave it (FR-014). This is the requirement most likely to degrade silently, because a plan that drops a citation still renders and still passes every structural gate
 - [ ] T078 [US3] Inconsistency test in `tests/intake/attributions.test.mjs` — the deliberately inconsistent fixture causes intake to surface the mismatch to the author rather than resolving it (FR-015)
-- [ ] T079 [US3] Approval-blocking test in `tests/intake/approval.test.mjs` — a proposed but unapproved plan cannot compile, render, or promote; the checkpoint is a gate, not a prompt (FR-013)
+- [ ] T079 [US3] Approval-blocking test in `tests/intake/approval.test.mjs` — a proposed but unapproved plan cannot **render or promote**; the checkpoint is a gate, not a prompt (FR-013). Assert the complementary half too: the non-rendering support check *does* run before approval and surfaces unsupported target content, and that it writes no artifact anywhere (FR-011)
 
 ---
 
@@ -241,7 +241,7 @@ violate Principle VI at the moment of highest risk.
 - [ ] T091 [US5] Rewrite `SKILL.md` as a lean router with "When to read this" triggers on every reference file (Principle V, FR-028)
 - [ ] T092 [US5] Rewrite `README.md` for the consolidated pipeline, removing the five-skill table and the superseded sibling-repository arrangement (FR-028, SC-010)
 - [ ] T093 [US5] **Cross-repository change** — in `../research-deck-builder` (a separate Git repository, `github.com/kurtvalcorza/research-deck-builder`): create a branch, add a deprecation notice to `README.md` directing readers here within the first screen, and open a PR. Do not commit to its default branch. This is a second repository's release cycle, not a file edit in this one (FR-033)
-- [ ] T094 [US5] Record the cross-repository dependency in `specs/001-deck-ir-consolidation/migration-inventory.md` — SC-011 cannot be marked satisfied from inside this repository, because it is a claim about a different one. It closes only when T087's PR merges, and this feature MUST NOT be reported complete while that is outstanding
+- [ ] T094 [US5] Record the cross-repository dependency in `specs/001-deck-ir-consolidation/migration-inventory.md` — SC-011 cannot be marked satisfied from inside this repository, because it is a claim about a different one. It closes only when the cross-repository PR opened by T093 merges, and this feature MUST NOT be reported complete while that is outstanding
 - [ ] T095 [US5] Re-confirm `migration-inventory.md` from T001 shows zero unaccounted entries now that everything is built (SC-007, SC-012)
 - [ ] T096 [US5] **Last step, gated on T095**: delete the superseded directories `presentation-studio/`, `keynote-deck-builder/`, `source-to-presentation-synthesis/`, `convert-pptx-to-handout/`, `summarize-slide-images-to-note/`
 
@@ -252,7 +252,7 @@ violate Principle VI at the moment of highest risk.
 - [ ] T097 [P] Add "When to read this" headers to every file in `references/` and verify none is loaded upfront (Principle V)
 - [ ] T098 [P] Write `examples/README.md` explaining each fixture and the quickstart scenario it serves
 - [ ] T099 Run every quickstart scenario on Windows and on POSIX via the npm scripts from T009, confirming identical exit codes
-- [ ] T100 Verify all 42 functional requirements are exercised by a test or quickstart scenario; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
+- [ ] T100 Verify every functional requirement is exercised by a test or quickstart scenario — derive the expected set of IDs directly from `spec.md` (FR-001 through FR-043, 43 in total, with FR-043 inserted before FR-038) rather than trusting a hardcoded count, so a newly added requirement cannot be silently omitted; record gaps in `specs/001-deck-ir-consolidation/coverage.md`
 - [ ] T101 Run `deck scrub` over the final tree and confirm zero violations before proposing the branch for merge (Principle VI)
 
 ---

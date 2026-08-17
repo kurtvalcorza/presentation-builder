@@ -238,6 +238,7 @@ Binds a verification result to what was actually rendered (R14, FR-039).
 | Field | Required | Description |
 |---|---|---|
 | `plan_digest` | yes | Digest of the plan the build consumed. |
+| `plan_snapshot` | yes | An immutable copy of the exact plan the build consumed — the canonical expected content (units, text, notes, attributions, ordering) that `verify --build` compares each artifact against. Its digest MUST equal `plan_digest`. |
 | `vocabulary` / `theme` | yes | What the plan was compiled with. |
 | `artifacts` | yes | Per target: staged path, digest, and the toolchain versions used. |
 | `verification` | no | The VerificationReport, once gates have run. |
@@ -248,6 +249,13 @@ Binds a verification result to what was actually rendered (R14, FR-039).
   matching record can be verified on request, but the result MUST state that provenance
   could not be established — "these checks passed" is a weaker claim than "this is the
   verified output of this plan", and the two MUST NOT be reported identically.
+- **`verify --build <record>` MUST be self-contained.** The structural gate compares each
+  extracted artifact against the plan's expected units, text, notes, and attributions, so
+  the record has to carry that expectation, not merely a digest of it: a digest is a
+  one-way fingerprint and cannot reconstruct the content once the original build process
+  has exited. `plan_snapshot` is that immutable expectation, and `plan_digest` binds it —
+  the command MUST reject a record whose snapshot does not hash to its `plan_digest` rather
+  than verify against a tampered expectation.
 - **Verification and promotion are per target.** Each entry in `artifacts` carries its own
   verification result and is promoted independently, gated on that target's own `passed`.
   Atomicity means *within* a target: either all of a target's artifacts are delivered or

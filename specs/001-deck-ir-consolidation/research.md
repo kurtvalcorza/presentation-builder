@@ -341,6 +341,16 @@ Where neither has occurred, the gate is `not_run` and the deck is `incomplete`. 
 existing three-state model (R6) already carries this correctly; the defect was that the
 gate lied about which state it was in.
 
+**Not every visual-bearing format has the automated path.** The automated checks operate
+on rasterized images, and rasterization exists only for the presentation file and formats
+derived from it (through the office toolchain). A web/HTML target has a real visual
+surface but no automated capture — that would require the headless browser R4 declines —
+so its visual gate runs only through human review. This is not `not_applicable` (the
+surface exists), and it is not an automated pass; absent a recorded human verdict it is
+`not_run`, which keeps the target `incomplete` rather than silently promoting an
+un-inspected page. Adding an automated HTML capture path later is a self-contained
+extension: it would give web the automated path without changing this model.
+
 **Alternatives rejected**:
 
 - *Keep rasterization as the gate*: the defect being fixed.
