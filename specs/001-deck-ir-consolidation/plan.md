@@ -23,7 +23,8 @@ One shared verifier replaces the two existing ones, enforcing rule *kinds* decla
 data by each vocabulary rather than branching on vocabulary identity, and comparing
 against canonical content that each format extracts from its own artifact type. Two gates
 — structural and visual — stand between a rendered artifact and delivery, with a
-three-state result so "could not check" is never reported as "verified". Rendering writes
+three-valued `overall` result (`passed`/`failed`/`incomplete`) so "could not check" is
+never reported as "verified". Rendering writes
 to staging; artifacts reach their delivered location only by atomic promotion after the
 gates pass.
 
@@ -35,7 +36,7 @@ Python 3.9+ for the presentation-file verifier only
 **Primary Dependencies** (selected and licence-checked in research R16): Ajv on its
 2020-12 entry point (MIT) for schema validation; PptxGenJS (MIT) for presentation
 generation; the pdf.js distribution (Apache-2.0) with a prebuilt N-API canvas backend
-(MIT) for rasterizing; python-pptx (MIT) for the verifier; and LibreOffice headless
+(MIT) for rasterizing; python-pptx (MIT) for the presentation-file extraction adapter; and LibreOffice headless
 (MPL-2.0) — the **single external system dependency**, invoked as a subprocess and never
 vendored, shared by the visual gate and the document format
 
@@ -93,7 +94,7 @@ modes, 1 intake component, and 2 post-processing utilities
 |---|---|---|
 | I | IR only | **PASS** — reinforced: the pack contract explicitly forbids a renderer reading source material or mutating the plan. |
 | II | Determinism split | **PASS** — the document format `derives_from` the presentation file rather than adding a third renderer, keeping SHIPPED code smaller than the original three-target design implied. |
-| III | Two gates | **PASS, strengthened** — the three-state gate model (`passed`/`failed`/`not_run`) and exit code 3 close a hole the principle implied but did not name: a two-state model cannot distinguish "verified" from "never checked". |
+| III | Two gates | **PASS, strengthened** — a three-valued `overall` (`passed`/`failed`/`incomplete`), rolled up from per-gate statuses that add `not_run` and `not_applicable`, plus exit code 3, close a hole the principle implied but did not name: a two-state model cannot distinguish "verified" from "never checked". |
 | IV | Additive packs | **PASS, strengthened** — discovery by scan removes the registry file, so the guarantee tightens from "zero files outside the pack directory *and the registry*" to "zero files outside the pack directory". |
 | V | Progressive disclosure | **PASS** — content schemas live beside the vocabulary that owns them, so a reader loads one vocabulary's rules, not all of them. |
 | VI | Scrub absolute | **PASS, strengthened** — the mode-aware denylist was validated against the live corpus during specification and eliminated four measured false positives. |
@@ -162,7 +163,7 @@ src/
 ├── plan/                        # envelope schema, composition, validation, error reporting
 ├── render-ir/                   # the closed primitive set + Render IR schema (pipeline-owned)
 ├── packs/                       # discovery by scan, manifest loading, capability probing
-├── gates/                       # gate orchestration, three-state reporting, backups
+├── gates/                       # gate orchestration, honest gate reporting, backups
 ├── delivery/                    # staging, build records, atomic promotion
 └── scrub/                       # fail-closed mode-aware denylist scanner
 
@@ -177,7 +178,7 @@ packs/
 └── storyboard/                  # target: non-slide view
 
 tools/
-├── verify_deck.py               # Python verifier, JSON on stdout
+├── verify_deck.py               # presentation-file extraction adapter (extracts, does not judge), JSON on stdout
 └── …                            # absorbed post-processing utilities (handout, image-summary)
 
 out/                             # build output — generated, untracked, never authored
@@ -201,9 +202,11 @@ carried its own `scripts/`, `references/`, and verifier. Collapsing to one `src/
 `packs/` as the only extension point is the structural expression of Principle IV.
 
 `tools/` sits outside `src/` deliberately. It holds everything that is *not* the Node
-pipeline: `verify_deck.py`, whose directory boundary marks the subprocess boundary of the
-one component in a different runtime, and the absorbed post-processing utilities, which
-act on finished artifacts rather than on the plan and so are not pipeline stages.
+pipeline: `verify_deck.py` — the presentation-file **extraction adapter** (it extracts
+units for the shared verifier to judge; it renders no verdict itself), whose directory
+boundary marks the subprocess boundary of the one component in a different runtime — and
+the absorbed post-processing utilities, which act on finished artifacts rather than on the
+plan and so are not pipeline stages.
 
 `out/` is generated and untracked. It appears here only so that every directory a task
 references is documented; nothing is ever authored into it.

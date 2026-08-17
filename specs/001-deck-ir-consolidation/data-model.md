@@ -87,6 +87,7 @@ One unit of the plan. The envelope is universal; `content` is not.
 | `content` | yes | Type-shaped payload. Validated by the vocabulary's schema for `type`. |
 | `notes` | yes | What the speaker says on this slide. |
 | `attribution` | no | Source credit for claims or figures on this slide. |
+| `source_location` | no | Free-form locator (e.g. `report.md:L42-58`) for where in the author's own source material this slide derives from. Populated by intake for traceability (FR-042, SC-017); absent on hand-authored plans. Distinct from `attribution[].source`. See `contracts/deck-plan.schema.md`. |
 | `duration_sec` | no | Intended spoken duration. Consumed by the rundown format (R5). |
 
 **Rules**
@@ -269,13 +270,16 @@ Binds a verification result to what was actually rendered (R14, FR-039).
 
 ### VerificationReport
 
-The outcome of the gates. Three states, because two cannot express "never checked" (R6).
+The outcome of the gates. Its summary field `overall` has **three** values —
+`passed`, `failed`, `incomplete` — because two cannot express "never checked" (R6). Each
+individual gate's `status` has **four**, adding `not_applicable` for a surface a format
+does not have; the two are different axes and are enumerated separately below.
 
 | Field | Required | Description |
 |---|---|---|
 | `deck` | yes | Which built artifact was verified. |
 | `gates` | yes | List of gate results. |
-| `overall` | yes | `passed`, `failed`, or `incomplete`. |
+| `overall` | yes | `passed`, `failed`, or `incomplete` (three-valued). |
 
 Each gate result carries: gate name; status; a reason when not `passed`; and per-finding
 detail identifying slide and field.

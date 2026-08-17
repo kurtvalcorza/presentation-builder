@@ -101,7 +101,7 @@ be expressed, not guessed.
 
 ### Gates and delivery boundary
 
-- [ ] T022 Implement the three-state gate result model in `src/gates/report.mjs` — any `not_run` yields `incomplete`, never `passed` (FR-019); distinguish `not_run` (nobody looked) from `N/A` (no such surface)
+- [ ] T022 Implement the gate result model in `src/gates/report.mjs` — four per-gate statuses (`passed`/`failed`/`not_run`/`not_applicable`) rolling up to a three-valued `overall` (`passed`/`failed`/`incomplete`): any `not_run` yields `incomplete`, never `passed` (FR-019); distinguish `not_run` (nobody looked) from `not_applicable` (no such surface)
 - [ ] T023 Implement the generic rule-kind evaluator in `src/gates/rules.mjs` supporting the kinds confirmed in T004, with **no branching on pack id** (FR-010)
 - [ ] T024 Implement the shared structural verifier in `src/gates/structural.mjs` — take each target's extraction and compare against the plan, hard-failing on notes missing, **attributions missing or mismatched** (`attributions_missing`, scoped to formats declaring `carries.attributions`), count mismatch, plan content absent, and render artifacts (FR-016). Comparison lives here; extraction never does
 - [ ] T025 Implement staging in `src/delivery/staging.mjs` — renderers write only under `out/staging/<build-id>/` (FR-038)
@@ -155,7 +155,7 @@ notes, nothing authored twice.
 
 - [ ] T046 [US1] Implement rasterizing in `src/gates/visual-render.mjs` — office converter for presentation-file → PDF, then the Node PDF rasterizer → per-slide images, into a fresh directory each run
 - [ ] T047 [US1] Implement the visual **inspection** in `src/gates/visual.mjs` — automated checks for the mechanically detectable defects the superseded builders enumerated (text overflow, clipping, element overlap, contrast below threshold, margin breach), producing a recorded verdict naming what was inspected and what was found. **Rasterizing alone reports `not_run`, never `passed`** (FR-017, R12). This automated path applies only to targets with a raster capture path (the presentation file and formats derived from it). A target whose visual surface has no automated capture — **web/HTML, which would need the headless browser R4 declines** — cannot use this path; its automated visual gate is `not_run`, never `passed`, and it is certified only through T048 (R12, R4)
-- [ ] T048 [US1] Implement the human-review path in `src/gates/visual.mjs` — record an explicit verdict against the rendered images, so a human pass is auditable and distinguishable from nobody looking (R12). This is the **only** visual certification available to formats with no automated capture path (web/HTML): without a recorded verdict such a target stays `not_run` and unpromotable, never silently passed
+- [ ] T048 [US1] Implement the human-review path in `src/gates/visual.mjs` — record an explicit verdict against the format's **rendered surface**, so a human pass is auditable and distinguishable from nobody looking (R12). The surface reviewed depends on the format: the rasterized per-slide images where a raster capture path exists (presentation-file and its derivatives), and the **rendered page in a browser** for web/HTML, which has no image capture. Do not point web review at images — there are none to produce (R4). This is the **only** visual certification available to formats with no automated capture path (web/HTML): without a recorded verdict such a target stays `not_run` and unpromotable, never silently passed
 
 ### Build pipeline
 

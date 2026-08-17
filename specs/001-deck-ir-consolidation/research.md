@@ -70,27 +70,27 @@ directory". Recorded for `/speckit-analyze` to reconcile.
 
 ---
 
-## R3 — Runtime split: Node core, Python verifier
+## R3 — Runtime split: Node core, Python extraction adapter
 
 **Decision**: The core pipeline, all renderers, and the scrub scanner are **Node**. The
-presentation-file verifier stays **Python**, invoked as a subprocess that returns JSON
-on stdout.
+presentation-file **extraction adapter** stays **Python**, invoked as a subprocess that
+returns JSON on stdout. It extracts; it does not judge — comparison against the plan lives
+in the shared Node verifier (see `contracts/cli-and-verifier.md`, R13).
 
 **Rationale**: Both runtimes are already mandatory today, so this adds nothing. Node is
 forced for rendering because the presentation-file library is Node-only. Python is
-retained for verification because reading a built presentation file — pulling per-slide
-text, speaker notes, and detecting icon-font remnants — is what the existing Python
-verifiers already do correctly and at length. Porting that to Node would be pure risk
-against zero benefit.
+retained for extraction because reading a built presentation file — pulling per-slide
+text, speaker notes, and attributions — is what the existing Python code already does
+correctly and at length. Porting that to Node would be pure risk against zero benefit.
 
-The JSON-over-stdout boundary keeps the two sides swappable and keeps the verifier
+The JSON-over-stdout boundary keeps the two sides swappable and keeps the adapter
 independently testable.
 
 **Alternatives rejected**:
 
-- *All-Node, replacing the Python verifier with an OOXML library*: the mature reading
-  path is Python; rewriting a working verifier to satisfy a tidiness preference risks
-  regressing the exact checks that exist because they caught real defects.
+- *All-Node, replacing the Python extraction adapter with an OOXML library*: the mature
+  reading path is Python; rewriting a working adapter to satisfy a tidiness preference
+  risks regressing the exact checks that exist because they caught real defects.
 - *All-Python, driving the Node renderer as a subprocess*: inverts the dependency so the
   primary language shells out for its main job.
 
@@ -141,12 +141,21 @@ treating them as delivery formats at all.
 ## R6 — Capability probing and honest degradation
 
 **Decision**: Probe for the office and image toolchains once at startup. Record each
-gate as `passed`, `failed`, or `not_run` with a reason, and surface all three states
-in the verification report and the delivery summary.
+gate as `passed`, `failed`, or `not_run` with a reason, and surface each of these states
+in the verification report and the delivery summary (a fourth per-gate status,
+`not_applicable`, is a separate concern discussed below).
 
 **Rationale**: FR-019 forbids reporting a deck as fully verified when a gate could not
 execute. A boolean pass/fail cannot express "this was never checked", which is exactly
-the condition that misleads. Three states is the minimum honest model.
+the condition that misleads. Three states is the minimum honest model for this
+degradation axis (`passed`/`failed`/`not_run`).
+
+A per-gate `status` later gained a **fourth** value, `not_applicable`, on a *different*
+axis — whether the format has the surface at all, not whether a toolchain ran (added with
+the `carries` model; see `data-model.md` and `pack-contract.md`). The two never collapse:
+`not_run` means a surface exists and nobody looked; `not_applicable` means there is no
+such surface. The report-level `overall` stays three-valued (`passed`/`failed`/
+`incomplete`), because `not_applicable` contributes nothing to it.
 
 **Alternatives rejected**:
 
@@ -335,11 +344,14 @@ visual gate, because it manufactures confidence.
 Two honest implementations exist and both are supported: **automated checks** for the
 mechanically detectable defects the superseded builders enumerated — text overflow,
 clipping, element overlap, contrast below threshold, margin violations — and **human
-review**, which records an explicit verdict against the rendered images.
+review**, which records an explicit verdict against the format's rendered surface: the
+rasterized images where a raster capture path exists, or the rendered page in a browser
+for a format with none (web/HTML).
 
 Where neither has occurred, the gate is `not_run` and the deck is `incomplete`. The
-existing three-state model (R6) already carries this correctly; the defect was that the
-gate lied about which state it was in.
+existing status model (R6) — `passed`/`failed`/`not_run`, plus `not_applicable` for a
+surface a format lacks — already carries this correctly; the defect was that the gate
+lied about which state it was in.
 
 **Not every visual-bearing format has the automated path.** The automated checks operate
 on rasterized images, and rasterization exists only for the presentation file and formats
