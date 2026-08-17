@@ -21,7 +21,17 @@ render_*/
 # scratch artifacts (authored per-talk; keep your own out of the repo)
 *_outline.json
 *_script.json
+*_refmap.json
+topups.json
+citations.json
+/build_*.js
+_*_deck/
 !**/references/*.json
+
+# scrub denylist (Constitution Principle VI) — the term list must never be published;
+# canonical copy lives in the private vault. Tooling reads it from here and fails
+# closed if it is absent.
+.scrub-denylist.txt
 
 # os / editor
 .DS_Store
